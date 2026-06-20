@@ -39,11 +39,15 @@ class MehrigiyoCrmApp extends StatelessWidget {
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthAuthenticated) {
-            context.read<BadgeBloc>().add(const LoadBadgeCounts());
-            appRouter.go(RouteNames.dashboard);
+            // Route based on operator role
+            if (state.user.isAdmin) {
+              appRouter.go(RouteNames.adminOperators);
+            } else {
+              appRouter.go(RouteNames.sellerKanban);
+            }
           } else if (state is AuthUnauthenticated || state is AuthError) {
             context.read<BadgeBloc>().add(const ResetBadgeCounts());
-            appRouter.go(RouteNames.dashboard);
+            appRouter.go(RouteNames.login);
           }
         },
         child: MaterialApp.router(

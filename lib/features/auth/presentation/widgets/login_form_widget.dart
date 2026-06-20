@@ -43,18 +43,20 @@ class _LoginFormWidgetState extends State<LoginFormWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _FieldLabel(text: 'Telefon raqam'),
+          _FieldLabel(text: 'Login'),
           const SizedBox(height: 8),
           TextFormField(
             controller: _phoneController,
-            keyboardType: TextInputType.phone,
+            keyboardType: TextInputType.text,
             textInputAction: TextInputAction.next,
+            autocorrect: false,
+            enableSuggestions: false,
             decoration: const InputDecoration(
-              hintText: '998901234567',
-              prefixIcon: Icon(Icons.phone_outlined),
+              hintText: 'aziz_operator',
+              prefixIcon: Icon(Icons.person_outline_rounded),
             ),
             validator: (v) =>
-                (v == null || v.isEmpty) ? 'Telefon raqamni kiriting' : null,
+                (v == null || v.isEmpty) ? 'Login kiritilishi shart' : null,
             onFieldSubmitted: (_) => _submit(),
           ),
           const SizedBox(height: 20),
