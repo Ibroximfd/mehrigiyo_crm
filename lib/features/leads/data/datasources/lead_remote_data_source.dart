@@ -15,6 +15,7 @@ abstract class LeadRemoteDataSource {
   Future<List<LeadStatusHistoryModel>> getLeadHistory(int id);
   Future<List<LeadModel>> getAdminLeads({int? statusId, int? assignedTo, String? source, int page = 1});
   Future<int> assignLeads({required List<int> leadIds, required int operatorId});
+  Future<int> bulkCreateLeads(List<Map<String, dynamic>> leads);
 }
 
 class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
@@ -116,6 +117,16 @@ class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
       return (res.data['assigned'] as int?) ?? leadIds.length;
     } on DioException catch (e) {
       throw dioFailure(e, 'Leadlarni biriktirishda xatolik');
+    }
+  }
+
+  @override
+  Future<int> bulkCreateLeads(List<Map<String, dynamic>> leads) async {
+    try {
+      final res = await apiClient.post(ApiConstants.adminLeadsBulkCreate, data: leads);
+      return (res.data['created'] as int?) ?? leads.length;
+    } on DioException catch (e) {
+      throw dioFailure(e, 'Leadlarni yaratishda xatolik');
     }
   }
 }

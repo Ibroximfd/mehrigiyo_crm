@@ -16,10 +16,12 @@ class OperatorSellerLayout extends StatelessWidget {
     RouteNames.sellerKanban,
     RouteNames.sellerLeads,
     RouteNames.sellerConsultations,
+    RouteNames.sellerChat,
   ];
 
   int _selectedIndex(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
+    if (path.startsWith(RouteNames.sellerChat)) return 3;
     if (path.startsWith(RouteNames.sellerConsultations)) return 2;
     if (path.startsWith(RouteNames.sellerLeads) ||
         path.contains('/op/seller/leads/')) {
@@ -31,7 +33,9 @@ class OperatorSellerLayout extends StatelessWidget {
   bool _isDetailPage(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final segments = path.split('/');
-    return path.contains('/leads/') && segments.length > 5;
+    final isLeadDetail = path.contains('/leads/') && segments.length > 5;
+    final isChatRoom = path.contains('/chat/') && segments.length > 5;
+    return isLeadDetail || isChatRoom;
   }
 
   void _navigate(int index, BuildContext context) {
@@ -82,6 +86,11 @@ class OperatorSellerLayout extends StatelessWidget {
                   selectedIcon: Icons.mail_rounded,
                   label: 'Arizalar',
                   badgeCount: badge.newConsultations,
+                ),
+                const OpNavItem(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  selectedIcon: Icons.chat_bubble_rounded,
+                  label: 'Chat',
                 ),
               ],
             ),
@@ -153,6 +162,11 @@ class _MobileSellerLayout extends StatelessWidget {
                         : const Icon(Icons.mail_outline_rounded),
                     selectedIcon: const Icon(Icons.mail_rounded),
                     label: 'Arizalar',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.chat_bubble_outline_rounded),
+                    selectedIcon: Icon(Icons.chat_bubble_rounded),
+                    label: 'Chat',
                   ),
                 ],
               ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/di/di_setup.dart';
+import '../../../operator_chat/domain/usecases/chat_usecases.dart';
+import '../../../operator_order/presentation/bloc/operator_order_bloc.dart';
+import '../../../operator_order/presentation/widgets/create_operator_order_dialog.dart';
 import '../bloc/lead_detail_bloc.dart';
 import '../../domain/entities/lead_entity.dart';
-import '../../../../core/di/di_setup.dart';
 import '../../domain/usecases/lead_usecases.dart';
 
 class LeadDetailPage extends StatelessWidget {
@@ -39,10 +42,20 @@ class _LeadDetailView extends StatelessWidget {
           BlocBuilder<LeadDetailBloc, LeadDetailState>(
             builder: (ctx, state) {
               if (state is LeadDetailLoaded) {
-                return IconButton(
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                  tooltip: 'Status o\'zgartirish',
-                  onPressed: () => _showStatusSheet(ctx, state),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.shopping_cart_outlined),
+                      tooltip: 'Buyurtma yaratish',
+                      onPressed: () => _showCreateOrderDialog(ctx, state.lead),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz_rounded),
+                      tooltip: 'Status o\'zgartirish',
+                      onPressed: () => _showStatusSheet(ctx, state),
+                    ),
+                  ],
                 );
               }
               return const SizedBox.shrink();
@@ -130,6 +143,23 @@ class _LeadDetailView extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showCreateOrderDialog(BuildContext context, LeadEntity lead) {
+    showDialog(
+      context: context,
+      builder: (_) => MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (_) => getIt<OperatorOrderBloc>()),
+          RepositoryProvider.value(value: getIt<SearchProductsUseCase>()),
+          RepositoryProvider.value(value: getIt<HasMoreProductsUseCase>()),
+        ],
+        child: CreateOperatorOrderDialog(
+          phone: lead.phone,
+          leadId: lead.id,
+        ),
       ),
     );
   }

@@ -72,3 +72,12 @@ class AdminLeadsAssigned extends AdminLeadsState {
   @override
   List<Object?> get props => [count];
 }
+
+class AdminLeadsBulkCreating extends AdminLeadsState {}
+
+class AdminLeadsBulkCreated extends AdminLeadsState {
+  final int count;
+  const AdminLeadsBulkCreated(this.count);
+  @override
+  List<Object?> get props => [count];
+}

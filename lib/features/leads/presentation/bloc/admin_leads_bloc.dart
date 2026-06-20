@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/bulk_lead_input.dart';
 import '../../domain/entities/lead_entity.dart';
 import '../../domain/usecases/lead_usecases.dart';
 
@@ -9,15 +10,20 @@ part 'admin_leads_state.dart';
 class AdminLeadsBloc extends Bloc<AdminLeadsEvent, AdminLeadsState> {
   final GetAdminLeadsUseCase getAdminLeads;
   final AssignLeadsUseCase assignLeads;
+  final BulkCreateLeadsUseCase bulkCreateLeads;
 
-  AdminLeadsBloc({required this.getAdminLeads, required this.assignLeads})
-      : super(AdminLeadsInitial()) {
+  AdminLeadsBloc({
+    required this.getAdminLeads,
+    required this.assignLeads,
+    required this.bulkCreateLeads,
+  }) : super(AdminLeadsInitial()) {
     on<AdminLeadsLoadRequested>(_onLoad);
     on<AdminLeadsLoadMore>(_onLoadMore);
     on<AdminLeadsFilterChanged>(_onFilter);
     on<AdminLeadsAssignRequested>(_onAssign);
     on<AdminLeadSelectionToggled>(_onToggle);
     on<AdminLeadSelectionCleared>(_onClearSelection);
+    on<AdminLeadsBulkCreateRequested>(_onBulkCreate);
   }
 
   Future<void> _onLoad(AdminLeadsLoadRequested event, Emitter<AdminLeadsState> emit) async {
@@ -88,5 +94,20 @@ class AdminLeadsBloc extends Bloc<AdminLeadsEvent, AdminLeadsState> {
     final cur = state;
     if (cur is! AdminLeadsLoaded) return;
     emit(cur.copyWith(selectedIds: {}));
+  }
+
+  Future<void> _onBulkCreate(
+    AdminLeadsBulkCreateRequested event,
+    Emitter<AdminLeadsState> emit,
+  ) async {
+    emit(AdminLeadsBulkCreating());
+    final result = await bulkCreateLeads(event.leads.map((l) => l.toJson()).toList());
+    result.fold(
+      (f) => emit(AdminLeadsError(f.message)),
+      (count) {
+        emit(AdminLeadsBulkCreated(count));
+        add(const AdminLeadsLoadRequested());
+      },
+    );
   }
 }

@@ -19,4 +19,9 @@ abstract final class RouteNames {
   static const _sellerLeadDetailBase = '/op/seller/leads';
   static String sellerLeadDetail(int id) => '$_sellerLeadDetailBase/$id';
   static const sellerLeadDetailParam = '/op/seller/leads/:id';
+
+  // Operator Seller Chat
+  static const sellerChat = '/op/seller/chat';
+  static const sellerChatRoomParam = '/op/seller/chat/:id';
+  static String sellerChatRoom(int id) => '/op/seller/chat/$id';
 }

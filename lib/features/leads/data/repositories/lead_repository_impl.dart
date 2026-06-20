@@ -100,4 +100,15 @@ class LeadRepositoryImpl implements LeadRepository {
       return const Left(ServerFailure('Leadlarni biriktirishda xatolik'));
     }
   }
+
+  @override
+  Future<Either<Failure, int>> bulkCreateLeads(List<Map<String, dynamic>> leads) async {
+    try {
+      return Right(await remoteDataSource.bulkCreateLeads(leads));
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (_) {
+      return const Left(ServerFailure('Leadlarni yaratishda xatolik'));
+    }
+  }
 }

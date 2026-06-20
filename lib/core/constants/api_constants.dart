@@ -37,6 +37,17 @@ class ApiConstants {
   static const String adminLeadsAssign = '/operator/admin/leads/assign/';
   static const String adminLeadsBulkCreate = '/operator/admin/leads/bulk-create/';
 
+  // Operator orders (seller)
+  static const String operatorOrderCreate = '/operator/orders/create/';
+
+  // Chat (seller)
+  static const String chatCreateRoom = '/operator/chat/create-room/';
+  static const String chatRooms = '/operator/chat/rooms/';
+  static String chatMessages(int roomId) => '/operator/chat/rooms/$roomId/messages/';
+  static String chatSendMessage(int roomId) => '/operator/chat/rooms/$roomId/messages/';
+  static String chatRecommend(int roomId) => '/operator/chat/rooms/$roomId/recommend/';
+  static const String shopMedicines = '/shop/medicines/';
+
   static String resolveMediaUrl(String url) {
     if (url.isEmpty) return url;
     if (!kIsWeb) return url;

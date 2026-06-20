@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../operators/domain/entities/operator_entity.dart';
 import '../bloc/admin_leads_bloc.dart';
+import '../widgets/bulk_create_leads_dialog.dart';
 import '../widgets/lead_card.dart';
 
 class AdminLeadsPage extends StatelessWidget {
@@ -14,12 +15,22 @@ class AdminLeadsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: BlocConsumer<AdminLeadsBloc, AdminLeadsState>(
-        listenWhen: (_, s) => s is AdminLeadsAssigned,
+        listenWhen: (_, s) => s is AdminLeadsAssigned || s is AdminLeadsBulkCreated || s is AdminLeadsError,
         listener: (ctx, state) {
           if (state is AdminLeadsAssigned) {
             ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
               content: Text('${state.count} ta lead biriktirildi'),
               backgroundColor: AppColors.success,
+            ));
+          } else if (state is AdminLeadsBulkCreated) {
+            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+              content: Text('${state.count} ta lead muvaffaqiyatli qo\'shildi'),
+              backgroundColor: AppColors.success,
+            ));
+          } else if (state is AdminLeadsError) {
+            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+              content: Text(state.message),
+              backgroundColor: AppColors.error,
             ));
           }
         },
@@ -66,6 +77,22 @@ class AdminLeadsPage extends StatelessWidget {
                                 ],
                               ),
                             ),
+                            OutlinedButton.icon(
+                              onPressed: () => showDialog(
+                                context: ctx,
+                                builder: (_) => BlocProvider.value(
+                                  value: ctx.read<AdminLeadsBloc>(),
+                                  child: const BulkCreateLeadsDialog(),
+                                ),
+                              ),
+                              icon: const Icon(Icons.upload_rounded, size: 16),
+                              label: const Text('Ko\'p qo\'shish'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             if (selected.isNotEmpty)
                               _AssignButton(
                                 count: selected.length,

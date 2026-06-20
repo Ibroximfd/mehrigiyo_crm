@@ -28,6 +28,19 @@ import '../../features/leads/presentation/bloc/lead_detail_bloc.dart';
 import '../../features/kanban/presentation/bloc/kanban_bloc.dart';
 
 import '../network/api_client.dart';
+import '../websocket/operator_ws_service.dart';
+import '../../features/operator_chat/data/datasources/chat_remote_data_source.dart';
+import '../../features/operator_chat/data/repositories/chat_repository_impl.dart';
+import '../../features/operator_chat/data/services/chat_ws_service.dart';
+import '../../features/operator_chat/domain/repositories/chat_repository.dart';
+import '../../features/operator_chat/domain/usecases/chat_usecases.dart';
+import '../../features/operator_chat/presentation/bloc/chat_list_bloc.dart';
+import '../../features/operator_chat/presentation/bloc/chat_room_bloc.dart';
+import '../../features/operator_order/data/datasources/operator_order_data_source.dart';
+import '../../features/operator_order/data/repositories/operator_order_repository_impl.dart';
+import '../../features/operator_order/domain/repositories/operator_order_repository.dart';
+import '../../features/operator_order/domain/usecases/operator_order_usecases.dart';
+import '../../features/operator_order/presentation/bloc/operator_order_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -82,6 +95,53 @@ void _registerOperatorFeatures() {
   getIt.registerLazySingleton(() => GetLeadHistoryUseCase(getIt<LeadRepository>()));
   getIt.registerLazySingleton(() => GetAdminLeadsUseCase(getIt<LeadRepository>()));
   getIt.registerLazySingleton(() => AssignLeadsUseCase(getIt<LeadRepository>()));
+  getIt.registerLazySingleton(() => BulkCreateLeadsUseCase(getIt<LeadRepository>()));
+
+  // ── WebSocket services ─────────────────────────────────────────────────────
+  getIt.registerLazySingleton<OperatorWsService>(() => OperatorWsService());
+
+  // ── Chat (seller) ──────────────────────────────────────────────────────────
+  getIt.registerLazySingleton<ChatRemoteDataSource>(
+    () => ChatRemoteDataSourceImpl(apiClient),
+  );
+  getIt.registerLazySingleton<ChatRepository>(
+    () => ChatRepositoryImpl(getIt<ChatRemoteDataSource>()),
+  );
+  getIt.registerLazySingleton(() => CreateChatRoomUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => GetChatRoomsUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => GetChatMessagesUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => SendChatMessageUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => SendRecommendationUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => SearchProductsUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => HasMoreProductsUseCase(getIt<ChatRepository>()));
+
+  // ── Operator Orders (seller) ───────────────────────────────────────────────
+  getIt.registerLazySingleton<OperatorOrderDataSource>(
+    () => OperatorOrderDataSourceImpl(apiClient),
+  );
+  getIt.registerLazySingleton<OperatorOrderRepository>(
+    () => OperatorOrderRepositoryImpl(getIt<OperatorOrderDataSource>()),
+  );
+  getIt.registerLazySingleton(() => CreateManualOrderUseCase(getIt<OperatorOrderRepository>()));
+  getIt.registerLazySingleton(() => CreateOrderFromRecommendationUseCase(getIt<OperatorOrderRepository>()));
+  getIt.registerFactory(() => OperatorOrderBloc(
+    createManual: getIt<CreateManualOrderUseCase>(),
+    createFromRecommendation: getIt<CreateOrderFromRecommendationUseCase>(),
+  ));
+
+  getIt.registerFactory(() => ChatListBloc(
+    getRooms: getIt<GetChatRoomsUseCase>(),
+    createRoom: getIt<CreateChatRoomUseCase>(),
+  ));
+  // ChatRoomBloc: factory so each room gets its own WS instance
+  getIt.registerFactory(() => ChatRoomBloc(
+    getMessages: getIt<GetChatMessagesUseCase>(),
+    sendMessage: getIt<SendChatMessageUseCase>(),
+    sendRecommendation: getIt<SendRecommendationUseCase>(),
+    searchProducts: getIt<SearchProductsUseCase>(),
+    hasMoreProducts: getIt<HasMoreProductsUseCase>(),
+    wsService: ChatWsService(),
+  ));
 
   // ── Operator BLoCs (factory = new instance each time) ─────────────────────
   getIt.registerFactory(() => OperatorsBloc(
@@ -103,6 +163,7 @@ void _registerOperatorFeatures() {
   getIt.registerFactory(() => AdminLeadsBloc(
     getAdminLeads: getIt<GetAdminLeadsUseCase>(),
     assignLeads: getIt<AssignLeadsUseCase>(),
+    bulkCreateLeads: getIt<BulkCreateLeadsUseCase>(),
   ));
 
   getIt.registerFactory(() => LeadDetailBloc(
@@ -116,6 +177,7 @@ void _registerOperatorFeatures() {
     getMyLeads: getIt<GetMyLeadsUseCase>(),
     changeStatus: getIt<ChangeLeadStatusUseCase>(),
     createLead: getIt<CreateLeadUseCase>(),
+    wsService: getIt<OperatorWsService>(),
   ));
 }
 

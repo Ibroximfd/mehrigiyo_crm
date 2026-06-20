@@ -15,6 +15,10 @@ import '../../features/leads/presentation/pages/admin_leads_page.dart';
 import '../../features/leads/presentation/pages/lead_detail_page.dart';
 import '../../features/kanban/presentation/bloc/kanban_bloc.dart';
 import '../../features/kanban/presentation/pages/kanban_page.dart';
+import '../../features/operator_chat/presentation/bloc/chat_list_bloc.dart';
+import '../../features/operator_chat/presentation/bloc/chat_room_bloc.dart';
+import '../../features/operator_chat/presentation/pages/chat_list_page.dart';
+import '../../features/operator_chat/presentation/pages/chat_room_page.dart';
 import '../../features/operator_panel/presentation/layouts/operator_admin_layout.dart';
 import '../../features/operator_panel/presentation/layouts/operator_seller_layout.dart';
 import '../../core/di/di_setup.dart';
@@ -194,6 +198,40 @@ final GoRouter appRouter = GoRouter(
           path: RouteNames.sellerConsultations,
           pageBuilder: (ctx, state) =>
               _pageTransition(ctx, state, const ConsultationsPage()),
+        ),
+        GoRoute(
+          path: RouteNames.sellerChat,
+          pageBuilder: (ctx, state) => _pageTransition(
+            ctx,
+            state,
+            BlocProvider(
+              create: (_) => getIt<ChatListBloc>()..add(const ChatListLoadRequested()),
+              child: const ChatListPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: RouteNames.sellerChatRoomParam,
+          pageBuilder: (ctx, state) {
+            final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+            final extra = state.extra as Map<String, dynamic>?;
+            final name = extra?['name'] as String?;
+            final phone = extra?['phone'] as String?;
+            final leadId = extra?['leadId'] as int?;
+            return _slidePage(
+              ctx,
+              state,
+              BlocProvider(
+                create: (_) => getIt<ChatRoomBloc>(),
+                child: ChatRoomPage(
+                  roomId: id,
+                  participantName: name,
+                  participantPhone: phone,
+                  leadId: leadId,
+                ),
+              ),
+            );
+          },
         ),
       ],
     ),

@@ -45,3 +45,10 @@ class AdminLeadSelectionToggled extends AdminLeadsEvent {
 class AdminLeadSelectionCleared extends AdminLeadsEvent {
   const AdminLeadSelectionCleared();
 }
+
+class AdminLeadsBulkCreateRequested extends AdminLeadsEvent {
+  final List<BulkLeadInput> leads;
+  const AdminLeadsBulkCreateRequested(this.leads);
+  @override
+  List<Object?> get props => [leads];
+}

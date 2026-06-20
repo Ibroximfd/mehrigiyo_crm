@@ -28,4 +28,5 @@ abstract class LeadRepository {
     required List<int> leadIds,
     required int operatorId,
   });
+  Future<Either<Failure, int>> bulkCreateLeads(List<Map<String, dynamic>> leads);
 }

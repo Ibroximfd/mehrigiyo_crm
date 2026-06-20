@@ -68,3 +68,11 @@ class AssignLeadsUseCase {
   Future<Either<Failure, int>> call({required List<int> leadIds, required int operatorId}) =>
       repo.assignLeads(leadIds: leadIds, operatorId: operatorId);
 }
+
+class BulkCreateLeadsUseCase {
+  final LeadRepository repo;
+  BulkCreateLeadsUseCase(this.repo);
+
+  Future<Either<Failure, int>> call(List<Map<String, dynamic>> leads) =>
+      repo.bulkCreateLeads(leads);
+}
