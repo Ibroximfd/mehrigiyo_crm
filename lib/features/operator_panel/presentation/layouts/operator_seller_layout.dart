@@ -17,10 +17,12 @@ class OperatorSellerLayout extends StatelessWidget {
     RouteNames.sellerLeads,
     RouteNames.sellerConsultations,
     RouteNames.sellerChat,
+    RouteNames.sellerStatistics,
   ];
 
   int _selectedIndex(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
+    if (path.startsWith(RouteNames.sellerStatistics)) return 4;
     if (path.startsWith(RouteNames.sellerChat)) return 3;
     if (path.startsWith(RouteNames.sellerConsultations)) return 2;
     if (path.startsWith(RouteNames.sellerLeads) ||
@@ -91,6 +93,11 @@ class OperatorSellerLayout extends StatelessWidget {
                   icon: Icons.chat_bubble_outline_rounded,
                   selectedIcon: Icons.chat_bubble_rounded,
                   label: 'Chat',
+                ),
+                const OpNavItem(
+                  icon: Icons.bar_chart_outlined,
+                  selectedIcon: Icons.bar_chart_rounded,
+                  label: 'Statistika',
                 ),
               ],
             ),
@@ -167,6 +174,11 @@ class _MobileSellerLayout extends StatelessWidget {
                     icon: Icon(Icons.chat_bubble_outline_rounded),
                     selectedIcon: Icon(Icons.chat_bubble_rounded),
                     label: 'Chat',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.bar_chart_outlined),
+                    selectedIcon: Icon(Icons.bar_chart_rounded),
+                    label: 'Statistika',
                   ),
                 ],
               ),

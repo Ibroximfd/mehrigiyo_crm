@@ -21,6 +21,9 @@ import '../../features/operator_chat/presentation/pages/chat_list_page.dart';
 import '../../features/operator_chat/presentation/pages/chat_room_page.dart';
 import '../../features/operator_panel/presentation/layouts/operator_admin_layout.dart';
 import '../../features/operator_panel/presentation/layouts/operator_seller_layout.dart';
+import '../../features/statistics/presentation/bloc/statistics_bloc.dart';
+import '../../features/statistics/presentation/pages/seller_statistics_page.dart';
+import '../../features/statistics/presentation/pages/admin_statistics_page.dart';
 import '../../core/di/di_setup.dart';
 import 'main_layout.dart';
 import 'route_names.dart';
@@ -159,6 +162,17 @@ final GoRouter appRouter = GoRouter(
           pageBuilder: (ctx, state) =>
               _pageTransition(ctx, state, const ConsultationsPage()),
         ),
+        GoRoute(
+          path: RouteNames.adminStatistics,
+          pageBuilder: (ctx, state) => _pageTransition(
+            ctx, state,
+            BlocProvider(
+              create: (_) => getIt<AdminStatisticsBloc>()
+                ..add(const AdminStatisticsLoadRequested()),
+              child: const AdminStatisticsPage(),
+            ),
+          ),
+        ),
       ],
     ),
 
@@ -207,6 +221,17 @@ final GoRouter appRouter = GoRouter(
             BlocProvider(
               create: (_) => getIt<ChatListBloc>()..add(const ChatListLoadRequested()),
               child: const ChatListPage(),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: RouteNames.sellerStatistics,
+          pageBuilder: (ctx, state) => _pageTransition(
+            ctx, state,
+            BlocProvider(
+              create: (_) => getIt<SellerStatisticsBloc>()
+                ..add(const SellerStatisticsLoadRequested()),
+              child: const SellerStatisticsPage(),
             ),
           ),
         ),

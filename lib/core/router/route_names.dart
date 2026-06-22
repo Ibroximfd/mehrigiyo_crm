@@ -24,4 +24,8 @@ abstract final class RouteNames {
   static const sellerChat = '/op/seller/chat';
   static const sellerChatRoomParam = '/op/seller/chat/:id';
   static String sellerChatRoom(int id) => '/op/seller/chat/$id';
+
+  // Statistics
+  static const sellerStatistics = '/op/seller/statistics';
+  static const adminStatistics = '/op/admin/statistics';
 }

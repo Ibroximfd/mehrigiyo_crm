@@ -42,6 +42,12 @@ import '../../features/operator_order/domain/repositories/operator_order_reposit
 import '../../features/operator_order/domain/usecases/operator_order_usecases.dart';
 import '../../features/operator_order/presentation/bloc/operator_order_bloc.dart';
 
+import '../../features/statistics/data/datasources/statistics_remote_data_source.dart';
+import '../../features/statistics/data/repositories/statistics_repository_impl.dart';
+import '../../features/statistics/domain/repositories/statistics_repository.dart';
+import '../../features/statistics/domain/usecases/statistics_usecases.dart';
+import '../../features/statistics/presentation/bloc/statistics_bloc.dart';
+
 final getIt = GetIt.instance;
 
 @InjectableInit(
@@ -170,6 +176,27 @@ void _registerOperatorFeatures() {
     getDetail: getIt<GetLeadDetailUseCase>(),
     changeStatus: getIt<ChangeLeadStatusUseCase>(),
     getHistory: getIt<GetLeadHistoryUseCase>(),
+  ));
+
+  // ── Statistics ─────────────────────────────────────────────────────────────
+  getIt.registerLazySingleton<StatisticsRemoteDataSource>(
+    () => StatisticsRemoteDataSourceImpl(apiClient),
+  );
+  getIt.registerLazySingleton<StatisticsRepository>(
+    () => StatisticsRepositoryImpl(getIt<StatisticsRemoteDataSource>()),
+  );
+  getIt.registerLazySingleton(() => GetMyStatisticsUseCase(getIt<StatisticsRepository>()));
+  getIt.registerLazySingleton(() => GetAdminStatisticsUseCase(getIt<StatisticsRepository>()));
+  getIt.registerLazySingleton(() => GetOperatorsRankingUseCase(getIt<StatisticsRepository>()));
+  getIt.registerLazySingleton(() => GetOperatorStatsUseCase(getIt<StatisticsRepository>()));
+
+  getIt.registerFactory(() => SellerStatisticsBloc(
+    getMyStats: getIt<GetMyStatisticsUseCase>(),
+  ));
+  getIt.registerFactory(() => AdminStatisticsBloc(
+    getAdminStats: getIt<GetAdminStatisticsUseCase>(),
+    getRanking: getIt<GetOperatorsRankingUseCase>(),
+    getOperatorStats: getIt<GetOperatorStatsUseCase>(),
   ));
 
   getIt.registerFactory(() => KanbanBloc(

@@ -48,6 +48,13 @@ class ApiConstants {
   static String chatRecommend(int roomId) => '/operator/chat/rooms/$roomId/recommend/';
   static const String shopMedicines = '/shop/medicines/';
 
+  // Statistics
+  static const String myStatistics = '/operator/my-statistics/';
+  static const String adminStatistics = '/operator/admin/statistics/';
+  static const String adminOperatorsRanking = '/operator/admin/operators/ranking/';
+  static String adminOperatorStats(int operatorId) =>
+      '/operator/admin/operators/$operatorId/stats/';
+
   static String resolveMediaUrl(String url) {
     if (url.isEmpty) return url;
     if (!kIsWeb) return url;

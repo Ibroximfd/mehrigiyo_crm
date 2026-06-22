@@ -17,6 +17,7 @@ class OperatorAdminLayout extends StatelessWidget {
     RouteNames.adminLeads,
     RouteNames.adminStatuses,
     RouteNames.adminConsultations,
+    RouteNames.adminStatistics,
   ];
 
   int _selectedIndex(BuildContext context) {
@@ -24,6 +25,7 @@ class OperatorAdminLayout extends StatelessWidget {
     if (path.startsWith(RouteNames.adminLeads)) return 1;
     if (path.startsWith(RouteNames.adminStatuses)) return 2;
     if (path.startsWith(RouteNames.adminConsultations)) return 3;
+    if (path.startsWith(RouteNames.adminStatistics)) return 4;
     return 0;
   }
 
@@ -77,6 +79,11 @@ class OperatorAdminLayout extends StatelessWidget {
                   selectedIcon: Icons.mail_rounded,
                   label: 'Arizalar',
                   badgeCount: badge.newConsultations,
+                ),
+                const OpNavItem(
+                  icon: Icons.bar_chart_outlined,
+                  selectedIcon: Icons.bar_chart_rounded,
+                  label: 'Statistika',
                 ),
               ],
             ),
@@ -170,6 +177,11 @@ class _MobileAdminLayout extends StatelessWidget {
                   : const Icon(Icons.mail_outline_rounded),
               selectedIcon: const Icon(Icons.mail_rounded),
               label: 'Arizalar',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.bar_chart_outlined),
+              selectedIcon: Icon(Icons.bar_chart_rounded),
+              label: 'Statistika',
             ),
           ],
         ),
