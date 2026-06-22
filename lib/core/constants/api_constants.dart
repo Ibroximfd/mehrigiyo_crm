@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConstants {
-  static String get baseUrl => kIsWeb ? '/api' : 'https://my.imorganic.uz/api';
+  static String get baseUrl => kIsWeb ? '/api' : 'https://imorganic.uz/api';
 
   // Support auth (existing)
   static const String supportLogin = '/support/operator/login/';

@@ -10,9 +10,8 @@ class SellerStatisticsBloc
     extends Bloc<SellerStatisticsEvent, SellerStatisticsState> {
   final GetMyStatisticsUseCase _getMyStats;
 
-  SellerStatisticsBloc({required GetMyStatisticsUseCase getMyStats})
-      : _getMyStats = getMyStats,
-        super(SellerStatisticsInitial()) {
+  SellerStatisticsBloc({required this._getMyStats})
+      : super(SellerStatisticsInitial()) {
     on<SellerStatisticsLoadRequested>(_onLoad);
     on<SellerStatisticsPeriodChanged>(_onPeriodChanged);
   }
@@ -52,13 +51,10 @@ class AdminStatisticsBloc
   final GetOperatorStatsUseCase _getOperatorStats;
 
   AdminStatisticsBloc({
-    required GetAdminStatisticsUseCase getAdminStats,
-    required GetOperatorsRankingUseCase getRanking,
-    required GetOperatorStatsUseCase getOperatorStats,
-  })  : _getAdminStats = getAdminStats,
-        _getRanking = getRanking,
-        _getOperatorStats = getOperatorStats,
-        super(AdminStatisticsInitial()) {
+    required this._getAdminStats,
+    required this._getRanking,
+    required this._getOperatorStats,
+  })  : super(AdminStatisticsInitial()) {
     on<AdminStatisticsLoadRequested>(_onLoad);
     on<AdminStatisticsPeriodChanged>(_onPeriodChanged);
     on<AdminStatisticsRankingLoadMore>(_onLoadMore);
