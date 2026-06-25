@@ -63,8 +63,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<void> logout() async {
-    try {
-      await apiClient.post(ApiConstants.supportLogout);
-    } catch (_) {}
+    // Operator API has no logout endpoint — token is cleared locally
   }
 }

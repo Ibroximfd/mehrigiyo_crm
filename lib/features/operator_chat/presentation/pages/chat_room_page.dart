@@ -146,10 +146,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       ),
       body: BlocConsumer<ChatRoomBloc, ChatRoomState>(
         listenWhen: (p, s) {
-          if (p is ChatRoomLoaded && s is ChatRoomLoaded) {
-            return s.messages.length > p.messages.length || s.sendError != null;
-          }
-          return false;
+          if (s is! ChatRoomLoaded) return false;
+          if (p is! ChatRoomLoaded) return true; // initial load
+          return s.messages.length > p.messages.length || s.sendError != null;
         },
         listener: (ctx, state) {
           if (state is ChatRoomLoaded) {

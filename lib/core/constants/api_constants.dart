@@ -42,9 +42,11 @@ class ApiConstants {
 
   // Chat (seller)
   static const String chatCreateRoom = '/operator/chat/create-room/';
-  static const String chatRooms = '/operator/chat/rooms/';
-  static String chatMessages(int roomId) => '/operator/chat/rooms/$roomId/messages/';
-  static String chatSendMessage(int roomId) => '/operator/chat/rooms/$roomId/messages/';
+  static const String chatRooms = '/chat/rooms/';
+  static String chatMessages(int roomId) => '/chat/rooms/$roomId/messages/';
+  static const String chatSendMessage = '/chat/messages/';
+  static String chatMarkAsRead(int roomId) => '/chat/rooms/$roomId/mark_as_read/';
+  static const String chatUnreadTotal = '/chat/rooms/unread_total/';
   static String chatRecommend(int roomId) => '/operator/chat/rooms/$roomId/recommend/';
   static const String shopMedicines = '/shop/medicines/';
 
@@ -58,7 +60,7 @@ class ApiConstants {
   static String resolveMediaUrl(String url) {
     if (url.isEmpty) return url;
     if (!kIsWeb) return url;
-    const host = 'https://my.imorganic.uz';
+    const host = 'https://imorganic.uz';
     if (url.startsWith('$host/media/')) return url.substring(host.length);
     return url;
   }

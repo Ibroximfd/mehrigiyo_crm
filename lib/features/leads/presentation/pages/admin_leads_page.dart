@@ -223,9 +223,16 @@ class AdminLeadsPage extends StatelessWidget {
   }
 }
 
-class _FilterRow extends StatelessWidget {
+class _FilterRow extends StatefulWidget {
   final List<OperatorEntity> operators;
   const _FilterRow({required this.operators});
+
+  @override
+  State<_FilterRow> createState() => _FilterRowState();
+}
+
+class _FilterRowState extends State<_FilterRow> {
+  int? _selectedOperatorId;
 
   @override
   Widget build(BuildContext context) {
@@ -235,22 +242,26 @@ class _FilterRow extends StatelessWidget {
         children: [
           _FilterChip(
             label: 'Barchasi',
-            selected: true,
-            onTap: () => context.read<AdminLeadsBloc>().add(
-              const AdminLeadsLoadRequested(),
-            ),
+            selected: _selectedOperatorId == null,
+            onTap: () {
+              setState(() => _selectedOperatorId = null);
+              context.read<AdminLeadsBloc>().add(const AdminLeadsLoadRequested());
+            },
           ),
           const SizedBox(width: 8),
-          if (operators.isNotEmpty)
-            ...operators.where((o) => !o.isAdmin).map(
+          if (widget.operators.isNotEmpty)
+            ...widget.operators.where((o) => !o.isAdmin).map(
               (op) => Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: _FilterChip(
                   label: op.fullName.split(' ').first,
-                  selected: false,
-                  onTap: () => context.read<AdminLeadsBloc>().add(
-                    AdminLeadsLoadRequested(assignedTo: op.id),
-                  ),
+                  selected: _selectedOperatorId == op.id,
+                  onTap: () {
+                    setState(() => _selectedOperatorId = op.id);
+                    context.read<AdminLeadsBloc>().add(
+                      AdminLeadsLoadRequested(assignedTo: op.id),
+                    );
+                  },
                 ),
               ),
             ),

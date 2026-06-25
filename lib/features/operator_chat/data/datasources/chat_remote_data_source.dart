@@ -68,8 +68,8 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   Future<ChatMessageModel> sendMessage({required int roomId, required String text}) async {
     try {
       final res = await apiClient.post(
-        ApiConstants.chatSendMessage(roomId),
-        data: {'text': text},
+        ApiConstants.chatSendMessage,
+        data: {'room': roomId, 'text': text},
       );
       return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {

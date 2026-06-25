@@ -21,13 +21,14 @@ class LeadDetailPage extends StatelessWidget {
         changeStatus: getIt<ChangeLeadStatusUseCase>(),
         getHistory: getIt<GetLeadHistoryUseCase>(),
       )..add(LeadDetailLoadRequested(leadId)),
-      child: const _LeadDetailView(),
+      child: _LeadDetailView(leadId: leadId),
     );
   }
 }
 
 class _LeadDetailView extends StatelessWidget {
-  const _LeadDetailView();
+  final int leadId;
+  const _LeadDetailView({required this.leadId});
 
   @override
   Widget build(BuildContext context) {
@@ -88,9 +89,7 @@ class _LeadDetailView extends StatelessWidget {
                   const SizedBox(height: 16),
                   OutlinedButton(
                     onPressed: () => ctx.read<LeadDetailBloc>().add(
-                      LeadDetailLoadRequested(ctx.read<LeadDetailBloc>().state is LeadDetailError
-                          ? 0
-                          : (ctx.read<LeadDetailBloc>().state as LeadDetailLoaded).lead.id),
+                      LeadDetailLoadRequested(leadId),
                     ),
                     child: const Text('Qayta yuklash'),
                   ),
