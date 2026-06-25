@@ -78,28 +78,72 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
     final cur = state;
     if (cur is! KanbanLoaded) return;
 
-    // Optimistic update
-    final updated = Map<int, List<LeadEntity>>.from(
-      cur.leadsByStatus.map((k, v) => MapEntry(k, List<LeadEntity>.from(v))),
+    // Optimistic move — the lead jumps to the new column immediately.
+    final optimistic = _moveLead(
+      cur.leadsByStatus,
+      leadId: event.leadId,
+      toStatusId: event.newStatusId,
     );
-    LeadEntity? movedLead;
-    updated[event.oldStatusId]?.removeWhere((l) {
-      if (l.id == event.leadId) {
-        movedLead = l.copyWith(statusId: event.newStatusId);
-        return true;
-      }
-      return false;
-    });
-    if (movedLead != null) {
-      updated[event.newStatusId] = [movedLead!, ...(updated[event.newStatusId] ?? [])];
-    }
-    emit(cur.copyWith(leadsByStatus: updated, isMoving: true));
+    if (optimistic == null) return; // lead not found or already there
+    emit(cur.copyWith(leadsByStatus: optimistic, isMoving: true));
 
     final result = await changeStatus(leadId: event.leadId, statusId: event.newStatusId);
+
+    // Re-read the latest state: other WS events may have arrived during the await.
+    final latest = state;
+    if (latest is! KanbanLoaded) return;
+
     result.fold(
-      (f) => emit(cur.copyWith(leadsByStatus: cur.leadsByStatus, isMoving: false)),
-      (_) => emit(cur.copyWith(isMoving: false)),
+      (_) {
+        // Genuine API failure — revert just this lead, based on the latest state
+        // (never wipe concurrent updates by reusing the stale snapshot).
+        final reverted = _moveLead(
+          latest.leadsByStatus,
+          leadId: event.leadId,
+          toStatusId: event.oldStatusId,
+        );
+        emit(latest.copyWith(
+          leadsByStatus: reverted ?? latest.leadsByStatus,
+          isMoving: false,
+        ));
+      },
+      // Success — keep the optimistic state; the WS echo is idempotent (no-op).
+      (_) => emit(latest.copyWith(isMoving: false)),
     );
+  }
+
+  /// Moves a lead to [toStatusId] regardless of where it currently sits, and
+  /// returns a fresh map. Returns null when there is nothing to do — the lead
+  /// isn't on the board, it's already in the target column, or the target
+  /// column isn't loaded. Idempotent and duplicate-safe.
+  Map<int, List<LeadEntity>>? _moveLead(
+    Map<int, List<LeadEntity>> source, {
+    required int leadId,
+    required int toStatusId,
+  }) {
+    LeadEntity? lead;
+    int? currentStatusId;
+    for (final entry in source.entries) {
+      for (final l in entry.value) {
+        if (l.id == leadId) {
+          lead = l;
+          currentStatusId = entry.key;
+          break;
+        }
+      }
+      if (lead != null) break;
+    }
+    if (lead == null) return null;
+    if (currentStatusId == toStatusId) return null; // already there
+    if (!source.containsKey(toStatusId)) return null; // target not loaded
+
+    final moved = lead.copyWith(statusId: toStatusId);
+    final updated = <int, List<LeadEntity>>{};
+    source.forEach((k, v) {
+      updated[k] = v.where((l) => l.id != leadId).toList();
+    });
+    updated[toStatusId] = [moved, ...updated[toStatusId]!];
+    return updated;
   }
 
   Future<void> _onCreate(KanbanCreateLead event, Emitter<KanbanState> emit) async {
@@ -170,25 +214,15 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
     final cur = state;
     if (cur is! KanbanLoaded) return;
 
-    final updated = Map<int, List<LeadEntity>>.from(
-      cur.leadsByStatus.map((k, v) => MapEntry(k, List<LeadEntity>.from(v))),
+    // Idempotent: if the lead is already in the target column (e.g. this is the
+    // echo of our own optimistic move), _moveLead returns null and we skip the
+    // emit — so no flicker and no extra rebuild.
+    final updated = _moveLead(
+      cur.leadsByStatus,
+      leadId: event.leadId,
+      toStatusId: event.toStatus,
     );
-    LeadEntity? moved;
-    updated[event.fromStatus]?.removeWhere((l) {
-      if (l.id == event.leadId) {
-        moved = l.copyWith(statusId: event.toStatus);
-        return true;
-      }
-      return false;
-    });
-    if (moved != null && updated.containsKey(event.toStatus)) {
-      // Skip if already there (self-update echo)
-      final alreadyThere = updated[event.toStatus]!.any((l) => l.id == event.leadId);
-      if (!alreadyThere) {
-        updated[event.toStatus] = [moved!, ...updated[event.toStatus]!];
-      }
-    }
-    emit(cur.copyWith(leadsByStatus: updated));
+    if (updated != null) emit(cur.copyWith(leadsByStatus: updated));
   }
 
   void _onWsLeadAssigned(KanbanWsLeadAssigned event, Emitter<KanbanState> emit) {

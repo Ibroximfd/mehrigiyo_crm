@@ -13,26 +13,33 @@ class LeadDetailLoading extends LeadDetailState {}
 class LeadDetailLoaded extends LeadDetailState {
   final LeadEntity lead;
   final List<LeadStatusHistory> history;
+  final List<StatusEntity> statuses;
   final String? statusError;
 
   const LeadDetailLoaded({
     required this.lead,
     required this.history,
+    this.statuses = const [],
     this.statusError,
   });
 
   @override
-  List<Object?> get props => [lead, history, statusError];
+  List<Object?> get props => [lead, history, statuses, statusError];
 }
 
 class LeadDetailChangingStatus extends LeadDetailState {
   final LeadEntity lead;
   final List<LeadStatusHistory> history;
+  final List<StatusEntity> statuses;
 
-  const LeadDetailChangingStatus({required this.lead, required this.history});
+  const LeadDetailChangingStatus({
+    required this.lead,
+    required this.history,
+    this.statuses = const [],
+  });
 
   @override
-  List<Object?> get props => [lead, history];
+  List<Object?> get props => [lead, history, statuses];
 }
 
 class LeadDetailError extends LeadDetailState {

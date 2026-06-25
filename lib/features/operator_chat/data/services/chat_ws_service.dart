@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class ChatWsService {
@@ -14,7 +14,7 @@ class ChatWsService {
   Stream<Map<String, dynamic>> get events => _ctrl.stream;
 
   static String _wsUrl(int roomId, String token) {
-    if (kIsWeb) return '/ws/chat/$roomId/?token=$token';
+    if (kIsWeb && !kDebugMode) return '/ws/chat/$roomId/?token=$token';
     return 'wss://imorganic.uz/ws/chat/$roomId/?token=$token';
   }
 

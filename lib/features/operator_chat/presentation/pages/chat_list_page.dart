@@ -3,11 +3,56 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../domain/entities/chat_entities.dart';
 import '../bloc/chat_list_bloc.dart';
 import '../widgets/create_room_dialog.dart';
 
-class ChatListPage extends StatelessWidget {
+class ChatListPage extends StatefulWidget {
   const ChatListPage({super.key});
+
+  @override
+  State<ChatListPage> createState() => _ChatListPageState();
+}
+
+class _ChatListPageState extends State<ChatListPage> {
+  GoRouter? _router;
+  String? _lastLocation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _router?.routerDelegate.removeListener(_onRouteChange);
+    _router = GoRouter.of(context);
+    _router!.routerDelegate.addListener(_onRouteChange);
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_onRouteChange);
+    super.dispose();
+  }
+
+  void _onRouteChange() {
+    final loc = _router?.routerDelegate.currentConfiguration.uri.path ?? '';
+    final prev = _lastLocation ?? '';
+    _lastLocation = loc;
+    // Reload when returning from a chat room (path with numeric id) to chat list
+    final wasChatRoom = RegExp(r'/chat/\d+').hasMatch(prev);
+    final isChatRoom = RegExp(r'/chat/\d+').hasMatch(loc);
+    if (wasChatRoom && !isChatRoom && mounted) {
+      context.read<ChatListBloc>().add(const ChatListLoadRequested());
+    }
+  }
+
+  void _showCreateDialog(BuildContext ctx) {
+    showDialog(
+      context: ctx,
+      builder: (_) => BlocProvider.value(
+        value: ctx.read<ChatListBloc>(),
+        child: const CreateRoomDialog(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,14 +62,15 @@ class ChatListPage extends StatelessWidget {
         listenWhen: (_, s) => s is ChatRoomCreated || s is ChatListCreateError,
         listener: (ctx, state) {
           if (state is ChatRoomCreated) {
+            ctx.read<ChatListBloc>().add(ChatListRoomRead(state.room.id));
             ctx.push(
-            RouteNames.sellerChatRoom(state.room.id),
-            extra: {
-              'name': state.room.participantName,
-              'phone': state.room.participantPhone,
-              'leadId': state.room.leadId,
-            },
-          );
+              RouteNames.sellerChatRoom(state.room.id),
+              extra: {
+                'name': state.room.participantName,
+                'phone': state.room.participantPhone,
+                'leadId': state.room.leadId,
+              },
+            );
           } else if (state is ChatListCreateError) {
             ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
               content: Text(state.message),
@@ -39,6 +85,8 @@ class ChatListPage extends StatelessWidget {
               children: [
                 _Header(
                   onNewChat: () => _showCreateDialog(ctx),
+                  onRefresh: () =>
+                      ctx.read<ChatListBloc>().add(const ChatListLoadRequested()),
                 ),
                 Expanded(child: _Body(state: state)),
               ],
@@ -48,21 +96,12 @@ class ChatListPage extends StatelessWidget {
       ),
     );
   }
-
-  void _showCreateDialog(BuildContext ctx) {
-    showDialog(
-      context: ctx,
-      builder: (_) => BlocProvider.value(
-        value: ctx.read<ChatListBloc>(),
-        child: const CreateRoomDialog(),
-      ),
-    );
-  }
 }
 
 class _Header extends StatelessWidget {
   final VoidCallback onNewChat;
-  const _Header({required this.onNewChat});
+  final VoidCallback onRefresh;
+  const _Header({required this.onNewChat, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +130,12 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          IconButton(
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF64748B)),
+            tooltip: 'Yangilash',
+          ),
+          const SizedBox(width: 4),
           FilledButton.icon(
             onPressed: onNewChat,
             icon: const Icon(Icons.add_rounded, size: 18),
@@ -113,82 +158,159 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state is ChatListLoading || state is ChatListCreating || state is ChatListInitial) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
     }
     if (state is ChatListError) {
       return _ErrorView(message: (state as ChatListError).message);
     }
 
-    final loadedRooms =
-        state is ChatListLoaded ? (state as ChatListLoaded).rooms : const [];
+    final rooms = state is ChatListLoaded
+        ? (state as ChatListLoaded).rooms.cast<ChatRoomEntity>()
+        : <ChatRoomEntity>[];
 
-    if (loadedRooms.isEmpty) {
-      return const _EmptyView();
-    }
+    if (rooms.isEmpty) return const _EmptyView();
 
     return RefreshIndicator(
-      onRefresh: () async {
-        context.read<ChatListBloc>().add(const ChatListLoadRequested());
-      },
+      color: AppColors.primary,
+      onRefresh: () async =>
+          context.read<ChatListBloc>().add(const ChatListLoadRequested()),
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        itemCount: loadedRooms.length,
-        separatorBuilder: (_, i) => const Divider(height: 1, indent: 72),
-        itemBuilder: (_, i) => _RoomTile(room: loadedRooms[i]),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: rooms.length,
+        separatorBuilder: (_, i) => const Divider(height: 1, indent: 76),
+        itemBuilder: (_, i) => _RoomTile(room: rooms[i]),
       ),
     );
   }
 }
 
 class _RoomTile extends StatelessWidget {
-  final dynamic room;
+  final ChatRoomEntity room;
   const _RoomTile({required this.room});
 
   @override
   Widget build(BuildContext context) {
-    final name = room.participantName as String;
-    final phone = room.participantPhone as String;
-    final lastMsg = room.lastMessage as String?;
-    final time = room.lastMessageAt as String?;
-    final letter = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final name = room.participantName.isNotEmpty
+        ? room.participantName
+        : room.participantPhone;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final hasUnread = room.unreadCount > 0;
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: AppColors.primaryLight,
-        child: Text(
-          letter,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primary,
-          ),
+    // Last message preview
+    String subtitle;
+    if (room.lastMessage != null && room.lastMessage!.isNotEmpty) {
+      subtitle = room.lastMessageIsMine == true
+          ? 'Siz: ${room.lastMessage!}'
+          : room.lastMessage!;
+    } else {
+      subtitle = room.participantPhone;
+    }
+
+    return InkWell(
+      onTap: () {
+        // Zero out unread immediately — before navigation, context is guaranteed valid here
+        context.read<ChatListBloc>().add(ChatListRoomRead(room.id));
+        context.push(
+          RouteNames.sellerChatRoom(room.id),
+          extra: {
+            'name': room.participantName,
+            'phone': room.participantPhone,
+            'leadId': room.leadId,
+          },
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            // Avatar
+            _Avatar(
+              avatarUrl: room.avatarUrl,
+              initial: initial,
+              hasUnread: hasUnread,
+            ),
+            const SizedBox(width: 12),
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontWeight:
+                                hasUnread ? FontWeight.w700 : FontWeight.w600,
+                            fontSize: 15,
+                            color: const Color(0xFF1E293B),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (room.lastMessageAt != null)
+                        Text(
+                          _fmtDate(room.lastMessageAt!),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: hasUnread
+                                ? AppColors.primary
+                                : const Color(0xFF94A3B8),
+                            fontWeight: hasUnread
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: hasUnread
+                                ? const Color(0xFF374151)
+                                : const Color(0xFF94A3B8),
+                            fontWeight: hasUnread
+                                ? FontWeight.w500
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (hasUnread)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            room.unreadCount > 99
+                                ? '99+'
+                                : '${room.unreadCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ),
-      title: Text(
-        name.isNotEmpty ? name : phone,
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-      ),
-      subtitle: Text(
-        lastMsg ?? phone,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-      ),
-      trailing: time != null
-          ? Text(
-              _fmtDate(time),
-              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-            )
-          : null,
-      onTap: () => context.push(
-        RouteNames.sellerChatRoom(room.id as int),
-        extra: {
-          'name': room.participantName as String,
-          'phone': room.participantPhone as String,
-          'leadId': room.leadId,
-        },
       ),
     );
   }
@@ -198,14 +320,57 @@ class _RoomTile extends StatelessWidget {
       final dt = DateTime.parse(iso).toLocal();
       final now = DateTime.now();
       if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-        final h = dt.hour.toString().padLeft(2, '0');
-        final m = dt.minute.toString().padLeft(2, '0');
-        return '$h:$m';
+        return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
       }
       return '${dt.day}.${dt.month.toString().padLeft(2, '0')}';
     } catch (_) {
       return '';
     }
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final String? avatarUrl;
+  final String initial;
+  final bool hasUnread;
+  const _Avatar({this.avatarUrl, required this.initial, required this.hasUnread});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        CircleAvatar(
+          radius: 26,
+          backgroundColor: AppColors.primaryLight,
+          backgroundImage:
+              avatarUrl != null && avatarUrl!.isNotEmpty ? NetworkImage(avatarUrl!) : null,
+          child: avatarUrl == null || avatarUrl!.isEmpty
+              ? Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                )
+              : null,
+        ),
+        if (hasUnread)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -219,11 +384,9 @@ class _EmptyView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 80, height: 80,
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
+              color: AppColors.primaryLight, shape: BoxShape.circle,
             ),
             child: const Icon(Icons.chat_bubble_outline_rounded,
                 size: 40, color: AppColors.primary),
@@ -231,7 +394,8 @@ class _EmptyView extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'Chatlar yo\'q',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
           ),
           const SizedBox(height: 6),
           const Text(

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class OperatorWsService {
@@ -13,7 +13,7 @@ class OperatorWsService {
   Stream<Map<String, dynamic>> get events => _ctrl.stream;
 
   static String _wsUrl(String token) {
-    if (kIsWeb) return '/ws/operator/?token=$token';
+    if (kIsWeb && !kDebugMode) return '/ws/operator/?token=$token';
     return 'wss://imorganic.uz/ws/operator/?token=$token';
   }
 

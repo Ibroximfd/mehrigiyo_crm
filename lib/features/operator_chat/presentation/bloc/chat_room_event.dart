@@ -43,6 +43,21 @@ class ChatRoomWsConnectRequested extends ChatRoomEvent {
   const ChatRoomWsConnectRequested();
 }
 
+class ChatRoomReplySet extends ChatRoomEvent {
+  final ChatMessageEntity message;
+  const ChatRoomReplySet(this.message);
+  @override
+  List<Object?> get props => [message];
+}
+
+class ChatRoomReplyCanceled extends ChatRoomEvent {
+  const ChatRoomReplyCanceled();
+}
+
+class ChatRoomLoadMoreRequested extends ChatRoomEvent {
+  const ChatRoomLoadMoreRequested();
+}
+
 // Internal — only dispatched from WS stream handler
 class _ChatRoomWsMessageReceived extends ChatRoomEvent {
   final Map<String, dynamic> data;

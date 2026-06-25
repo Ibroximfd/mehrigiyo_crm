@@ -374,7 +374,7 @@ class _NavItemState extends State<_NavItem> {
                     ],
                   ),
                 ),
-                // Label — animates in/out
+                // Label — animates in/out (174 = 176 - 2px border)
                 ClipRect(
                   child: Align(
                     alignment: Alignment.centerLeft,
@@ -382,7 +382,7 @@ class _NavItemState extends State<_NavItem> {
                     child: Opacity(
                       opacity: widget.expandValue,
                       child: SizedBox(
-                        width: _kExpanded - _kCollapsed,
+                        width: _kExpanded - _kCollapsed - 2,
                         child: Text(
                           widget.item.label,
                           style: TextStyle(
@@ -496,7 +496,7 @@ class _UserRow extends StatelessWidget {
                       child: Opacity(
                         opacity: expandValue,
                         child: SizedBox(
-                          width: _kExpanded - _kCollapsed,
+                          width: _kExpanded - _kCollapsed - 2,
                           child: Row(
                             children: [
                               const SizedBox(width: 4),

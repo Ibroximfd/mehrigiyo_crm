@@ -2,20 +2,21 @@ import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/network/api_client.dart';
+import '../../domain/entities/chat_entities.dart';
 import '../models/chat_models.dart';
 
 abstract class ChatRemoteDataSource {
   Future<ChatRoomModel> createRoom({required String phone, int? leadId});
   Future<List<ChatRoomModel>> getRooms();
-  Future<List<ChatMessageModel>> getMessages(int roomId);
-  Future<ChatMessageModel> sendMessage({required int roomId, required String text});
+  Future<ChatMessagesPage> getMessages(int roomId, {int? beforeId});
+  Future<ChatMessageModel> sendMessage({required int roomId, required String text, int? replyToId});
   Future<ChatMessageModel> sendRecommendation({
     required int roomId,
     required List<int> productIds,
     int? leadId,
   });
-  Future<List<ChatProductModel>> searchProducts(String query, {int page = 1});
-  Future<bool> hasMoreProducts(String query, int page);
+  Future<ChatProductsPage> searchProducts(String query, {int page = 1});
+  Future<void> markAsRead(int roomId);
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
@@ -28,7 +29,11 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       final body = <String, dynamic>{'phone': phone};
       if (leadId != null) body['lead_id'] = leadId;
       final res = await apiClient.post(ApiConstants.chatCreateRoom, data: body);
-      return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
+      final raw = res.data as Map<String, dynamic>;
+      final roomJson = raw.containsKey('room')
+          ? raw['room'] as Map<String, dynamic>
+          : raw;
+      return ChatRoomModel.fromJson(roomJson);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) {
         final data = e.response?.data;
@@ -54,23 +59,32 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<List<ChatMessageModel>> getMessages(int roomId) async {
+  Future<ChatMessagesPage> getMessages(int roomId, {int? beforeId}) async {
     try {
-      final res = await apiClient.get(ApiConstants.chatMessages(roomId));
-      final list = res.data is Map ? (res.data['results'] as List? ?? []) : (res.data as List? ?? []);
-      return list.map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>)).toList();
+      final params = <String, dynamic>{};
+      if (beforeId != null) params['before'] = beforeId;
+      final res = await apiClient.get(
+        ApiConstants.chatMessages(roomId),
+        queryParameters: params.isEmpty ? null : params,
+      );
+      final data = res.data as Map<String, dynamic>;
+      final results = (data['results'] as List? ?? [])
+          .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final hasMore = data['has_more'] as bool? ?? false;
+      final oldestId = data['oldest_id'] as int?;
+      return ChatMessagesPage(messages: results, hasMore: hasMore, oldestId: oldestId);
     } on DioException catch (e) {
       throw dioFailure(e, 'Xabarlarni yuklashda xatolik');
     }
   }
 
   @override
-  Future<ChatMessageModel> sendMessage({required int roomId, required String text}) async {
+  Future<ChatMessageModel> sendMessage({required int roomId, required String text, int? replyToId}) async {
     try {
-      final res = await apiClient.post(
-        ApiConstants.chatSendMessage,
-        data: {'room': roomId, 'text': text},
-      );
+      final body = <String, dynamic>{'room': roomId, 'text': text};
+      if (replyToId != null) body['reply_to'] = replyToId;
+      final res = await apiClient.post(ApiConstants.chatSendMessage, data: body);
       return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw dioFailure(e, 'Xabar yuborishda xatolik');
@@ -94,29 +108,27 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<List<ChatProductModel>> searchProducts(String query, {int page = 1}) async {
+  Future<ChatProductsPage> searchProducts(String query, {int page = 1}) async {
     try {
       final params = <String, dynamic>{'page': page};
       if (query.isNotEmpty) params['search'] = query;
       final res = await apiClient.get(ApiConstants.shopMedicines, queryParameters: params);
       final data = res.data as Map<String, dynamic>;
-      final list = data['results'] as List? ?? [];
-      return list.map((e) => ChatProductModel.fromJson(e as Map<String, dynamic>)).toList();
+      final list = (data['results'] as List? ?? [])
+          .map((e) => ChatProductModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      return ChatProductsPage(products: list, hasMore: data['next'] != null);
     } on DioException catch (e) {
       throw dioFailure(e, 'Mahsulotlarni yuklashda xatolik');
     }
   }
 
   @override
-  Future<bool> hasMoreProducts(String query, int page) async {
+  Future<void> markAsRead(int roomId) async {
     try {
-      final params = <String, dynamic>{'page': page};
-      if (query.isNotEmpty) params['search'] = query;
-      final res = await apiClient.get(ApiConstants.shopMedicines, queryParameters: params);
-      final data = res.data as Map<String, dynamic>;
-      return data['next'] != null;
-    } on DioException catch (_) {
-      return false;
+      await apiClient.post(ApiConstants.chatMarkAsRead(roomId));
+    } on DioException catch (e) {
+      throw dioFailure(e, 'Mark as read xatolik');
     }
   }
 }

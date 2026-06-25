@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/router/route_names.dart';
+import '../../../leads/domain/entities/lead_entity.dart';
+import '../../../operator_chat/domain/usecases/chat_usecases.dart';
 import '../bloc/kanban_bloc.dart';
 import '../widgets/kanban_column.dart';
 class KanbanPage extends StatelessWidget {
@@ -80,6 +83,7 @@ class KanbanPage extends StatelessWidget {
                                     ));
                                   },
                                   onLeadTap: (leadId) => ctx.push(RouteNames.sellerLeadDetail(leadId)),
+                                  onChatTap: (lead) => _openChat(ctx, lead),
                                 );
                               }).toList(),
                             ),
@@ -101,6 +105,43 @@ class KanbanPage extends StatelessWidget {
             );
           }
           return const SizedBox.shrink();
+        },
+      ),
+    );
+  }
+
+  Future<void> _openChat(BuildContext context, LeadEntity lead) async {
+    // useRootNavigator: true — go_router nested navigators bilan conflict bo'lmasin
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+
+    final result = await GetIt.I<CreateChatRoomUseCase>()(
+      phone: lead.phone,
+      leadId: lead.id,
+    );
+
+    if (!context.mounted) return;
+
+    // Root navigator orqali dialog yopiladi
+    Navigator.of(context, rootNavigator: true).pop();
+
+    result.fold(
+      (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(f.message),
+        backgroundColor: AppColors.error,
+      )),
+      (room) => context.push(
+        RouteNames.sellerChatRoom(room.id),
+        extra: {
+          'name': room.participantName,
+          'phone': room.participantPhone,
+          'leadId': lead.id,
         },
       ),
     );

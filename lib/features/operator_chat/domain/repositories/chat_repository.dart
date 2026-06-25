@@ -10,11 +10,12 @@ abstract class ChatRepository {
 
   Future<Either<Failure, List<ChatRoomEntity>>> getRooms();
 
-  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(int roomId);
+  Future<Either<Failure, ChatMessagesPage>> getMessages(int roomId, {int? beforeId});
 
   Future<Either<Failure, ChatMessageEntity>> sendMessage({
     required int roomId,
     required String text,
+    int? replyToId,
   });
 
   Future<Either<Failure, ChatMessageEntity>> sendRecommendation({
@@ -23,6 +24,6 @@ abstract class ChatRepository {
     int? leadId,
   });
 
-  Future<Either<Failure, List<ChatProductEntity>>> searchProducts(String query, {int page = 1});
-  Future<Either<Failure, bool>> hasMoreProducts(String query, int page);
+  Future<Either<Failure, ChatProductsPage>> searchProducts(String query, {int page = 1});
+  Future<Either<Failure, void>> markAsRead(int roomId);
 }

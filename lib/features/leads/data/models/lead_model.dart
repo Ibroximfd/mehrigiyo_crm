@@ -19,23 +19,33 @@ class LeadModel extends LeadEntity {
 
   factory LeadModel.fromJson(Map<String, dynamic> json) {
     final assigned = json['assigned_to'];
+    // `status` may come back as an int id or a nested {id, name} object
+    // depending on the endpoint — handle both so parsing never throws.
+    final status = json['status'];
     return LeadModel(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       fullName: json['full_name']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
-      statusId: json['status'] is int ? json['status'] as int : null,
-      statusName: json['status_name']?.toString(),
+      statusId: status is num
+          ? status.toInt()
+          : status is Map
+              ? (status['id'] as num?)?.toInt()
+              : null,
+      statusName: json['status_name']?.toString() ??
+          (status is Map ? status['name']?.toString() : null),
       source: json['source']?.toString() ?? 'manual',
       assignedTo: assigned is Map
           ? AssignedTo(
-              id: assigned['id'] as int,
+              id: (assigned['id'] as num?)?.toInt() ?? 0,
               fullName: assigned['full_name']?.toString() ?? '',
             )
           : null,
       region: json['region']?.toString(),
       note: json['note']?.toString(),
       clientUser: json['client_user']?.toString(),
-      createdByName: (json['created_by'] as Map?)?.values.lastOrNull?.toString(),
+      createdByName: json['created_by'] is Map
+          ? (json['created_by'] as Map)['full_name']?.toString()
+          : null,
       createdAt: json['created_at']?.toString() ?? '',
       updatedAt: json['updated_at']?.toString() ?? '',
     );

@@ -24,6 +24,8 @@ dependencies:
   google_fonts: ^8.0.2
   shared_preferences: ^2.5.4
   web_socket_channel: ^3.0.1
+  pretty_dio_logger: ^1.4.0
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:

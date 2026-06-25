@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:injectable/injectable.dart';
+import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../constants/api_constants.dart';
 import 'dio_interceptor.dart';
 
@@ -16,6 +18,17 @@ class ApiClient {
       'Accept': 'application/json',
     };
     _dio.interceptors.add(interceptor);
+    if (kDebugMode) {
+      _dio.interceptors.add(PrettyDioLogger(
+        requestHeader: true,
+        requestBody: true,
+        responseHeader: false,
+        responseBody: true,
+        error: true,
+        compact: false,
+        maxWidth: 120,
+      ));
+    }
   }
 
   Future<Response> get(

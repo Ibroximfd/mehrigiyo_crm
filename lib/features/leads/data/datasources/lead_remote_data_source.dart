@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/error/failure.dart';
@@ -76,7 +77,16 @@ class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
         ApiConstants.leadChangeStatus(leadId),
         data: {'status_id': statusId},
       );
-      return LeadModel.fromJson(res.data as Map<String, dynamic>);
+      // Reaching here means HTTP 2xx (Dio throws DioException otherwise), so the
+      // change is persisted. Never let response-body parsing turn a success into
+      // a failure — parse leniently and fall back to a fresh fetch if needed.
+      final data = res.data;
+      if (data is Map<String, dynamic>) return LeadModel.fromJson(data);
+      if (data is String && data.trim().isNotEmpty) {
+        final decoded = jsonDecode(data);
+        if (decoded is Map<String, dynamic>) return LeadModel.fromJson(decoded);
+      }
+      return await getLeadDetail(leadId);
     } on DioException catch (e) {
       throw dioFailure(e, 'Status o\'zgartirishda xatolik');
     }

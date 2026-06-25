@@ -34,13 +34,14 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<Either<Failure, List<ChatMessageEntity>>> getMessages(int roomId) async {
+  Future<Either<Failure, ChatMessagesPage>> getMessages(int roomId, {int? beforeId}) async {
     try {
-      return Right(await dataSource.getMessages(roomId));
-    } on Failure catch (e) {
-      return Left(e);
-    } catch (_) {
-      return const Left(ServerFailure('Xabarlarni yuklashda xatolik'));
+      final result = await dataSource.getMessages(roomId, beforeId: beforeId);
+      return Right(result);
+    } on Failure catch (f) {
+      return Left(f);
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
     }
   }
 
@@ -48,9 +49,10 @@ class ChatRepositoryImpl implements ChatRepository {
   Future<Either<Failure, ChatMessageEntity>> sendMessage({
     required int roomId,
     required String text,
+    int? replyToId,
   }) async {
     try {
-      return Right(await dataSource.sendMessage(roomId: roomId, text: text));
+      return Right(await dataSource.sendMessage(roomId: roomId, text: text, replyToId: replyToId));
     } on Failure catch (e) {
       return Left(e);
     } catch (_) {
@@ -78,7 +80,7 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<Either<Failure, List<ChatProductEntity>>> searchProducts(String query, {int page = 1}) async {
+  Future<Either<Failure, ChatProductsPage>> searchProducts(String query, {int page = 1}) async {
     try {
       return Right(await dataSource.searchProducts(query, page: page));
     } on Failure catch (e) {
@@ -89,13 +91,14 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
-  Future<Either<Failure, bool>> hasMoreProducts(String query, int page) async {
+  Future<Either<Failure, void>> markAsRead(int roomId) async {
     try {
-      return Right(await dataSource.hasMoreProducts(query, page));
+      await dataSource.markAsRead(roomId);
+      return const Right(null);
     } on Failure catch (e) {
       return Left(e);
     } catch (_) {
-      return Right(false);
+      return const Left(ServerFailure('Mark as read xatolik'));
     }
   }
 }

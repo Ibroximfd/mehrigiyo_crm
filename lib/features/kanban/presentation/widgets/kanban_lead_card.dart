@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../leads/domain/entities/lead_entity.dart';
 import '../../../statuses/domain/entities/status_entity.dart';
+import '../../../statuses/presentation/widgets/status_picker_dialog.dart';
 
-class KanbanLeadCard extends StatelessWidget {
+class KanbanLeadCard extends StatefulWidget {
   final LeadEntity lead;
   final List<StatusEntity> allStatuses;
   final void Function(int newStatusId) onStatusChange;
   final VoidCallback? onTap;
+  final VoidCallback? onChatTap;
 
   const KanbanLeadCard({
     super.key,
@@ -15,186 +18,222 @@ class KanbanLeadCard extends StatelessWidget {
     required this.allStatuses,
     required this.onStatusChange,
     this.onTap,
+    this.onChatTap,
   });
 
   @override
+  State<KanbanLeadCard> createState() => _KanbanLeadCardState();
+}
+
+class _KanbanLeadCardState extends State<KanbanLeadCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Color(0xFFE8ECF0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _hovered ? AppColors.primary : const Color(0xFFE8ECF0),
+              width: _hovered ? 1.5 : 1,
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              lead.fullName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: Color(0xFF1E293B),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.phone_rounded, size: 11, color: Color(0xFF94A3B8)),
-                const SizedBox(width: 3),
-                Expanded(
-                  child: Text(
-                    lead.phone,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            if (lead.region != null && lead.region!.isNotEmpty) ...[
-              const SizedBox(height: 3),
-              Row(
-                children: [
-                  const Icon(Icons.location_on_rounded, size: 11, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Text(
-                      lead.region!,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _hovered ? 0.10 : 0.05),
+                blurRadius: _hovered ? 10 : 6,
+                offset: const Offset(0, 2),
               ),
             ],
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _SourceBadge(source: lead.source),
-                GestureDetector(
-                  onTap: () => _showMoveMenu(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Main info
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.lead.fullName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: Color(0xFF1E293B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 5),
+                    Row(
                       children: [
-                        Icon(Icons.swap_horiz_rounded, size: 13, color: AppColors.primary),
-                        SizedBox(width: 3),
-                        Text('Ko\'chirish', style: TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                        const Icon(
+                          Icons.phone_rounded,
+                          size: 12,
+                          color: Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(child: _PhoneCopy(phone: widget.lead.phone)),
                       ],
                     ),
-                  ),
+                    if (widget.lead.region != null &&
+                        widget.lead.region!.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_rounded,
+                            size: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              widget.lead.region!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ),
-          ],
+              ),
+
+              // Action row
+              Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(14),
+                  ),
+                  border: Border(top: BorderSide(color: Color(0xFFEFF2F5))),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                child: Row(
+                  children: [
+                    _ActionBtn(
+                      icon: Icons.chat_bubble_rounded,
+                      color: const Color(0xFF10B981),
+                      bgColor: const Color(0xFFD1FAE5),
+                      tooltip: 'Chat ochish',
+                      onTap: widget.onChatTap,
+                    ),
+                    const SizedBox(width: 8),
+                    const Spacer(),
+                    _ActionBtn(
+                      icon: Icons.swap_horiz_rounded,
+                      color: AppColors.primary,
+                      bgColor: AppColors.primaryLight,
+                      tooltip: 'Ko\'chirish',
+                      onTap: () => _showMoveMenu(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _showMoveMenu(BuildContext context) {
-    final otherStatuses = allStatuses.where((s) => s.id != lead.statusId).toList();
-    showModalBottomSheet(
+    showStatusPickerDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              '${lead.fullName} — ko\'chirish',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            const Text('Yangi statusni tanlang:', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-            const SizedBox(height: 12),
-            ...otherStatuses.map(
-              (s) => ListTile(
-                dense: true,
-                leading: Container(
-                  width: 10, height: 10,
-                  decoration: BoxDecoration(
-                    color: _hexColor(s.color),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onStatusChange(s.id);
-                },
-              ),
-            ),
-            if (otherStatuses.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Text('Boshqa statuslar yo\'q', style: TextStyle(color: Color(0xFF94A3B8))),
-                ),
-              ),
-            const SizedBox(height: 8),
-          ],
+      leadName: widget.lead.fullName,
+      currentStatusId: widget.lead.statusId,
+      statuses: widget.allStatuses,
+      onSelected: widget.onStatusChange,
+    );
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Color bgColor;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _ActionBtn({
+    required this.icon,
+    required this.color,
+    required this.bgColor,
+    required this.tooltip,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: color),
         ),
       ),
     );
   }
-
-  Color _hexColor(String hex) {
-    final h = hex.replaceFirst('#', '');
-    try {
-      return Color(int.parse('FF$h', radix: 16));
-    } catch (_) {
-      return AppColors.primary;
-    }
-  }
 }
 
-class _SourceBadge extends StatelessWidget {
-  final String source;
-  const _SourceBadge({required this.source});
+class _PhoneCopy extends StatelessWidget {
+  final String phone;
+  const _PhoneCopy({required this.phone});
 
   @override
   Widget build(BuildContext context) {
-    const map = {
-      'manual': ('Qo\'lda', AppColors.accent),
-      'app': ('Ilova', AppColors.primary),
-      'instagram': ('IG', Color(0xFFE1306C)),
-      'facebook': ('FB', Color(0xFF1877F2)),
-    };
-    final entry = map[source] ?? ('?', Color(0xFF94A3B8));
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: entry.$2.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        entry.$1,
-        style: TextStyle(color: entry.$2, fontSize: 10, fontWeight: FontWeight.w600),
+    return InkWell(
+      onTap: () async {
+        await Clipboard.setData(ClipboardData(text: phone));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Telefon raqami nusxalandi!'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            phone,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.copy_rounded, size: 12, color: AppColors.textMuted),
+        ],
       ),
     );
   }

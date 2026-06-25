@@ -19,8 +19,8 @@ class GetChatRoomsUseCase {
 class GetChatMessagesUseCase {
   final ChatRepository repo;
   GetChatMessagesUseCase(this.repo);
-  Future<Either<Failure, List<ChatMessageEntity>>> call(int roomId) =>
-      repo.getMessages(roomId);
+  Future<Either<Failure, ChatMessagesPage>> call(int roomId, {int? beforeId}) =>
+      repo.getMessages(roomId, beforeId: beforeId);
 }
 
 class SendChatMessageUseCase {
@@ -29,8 +29,9 @@ class SendChatMessageUseCase {
   Future<Either<Failure, ChatMessageEntity>> call({
     required int roomId,
     required String text,
+    int? replyToId,
   }) =>
-      repo.sendMessage(roomId: roomId, text: text);
+      repo.sendMessage(roomId: roomId, text: text, replyToId: replyToId);
 }
 
 class SendRecommendationUseCase {
@@ -47,13 +48,12 @@ class SendRecommendationUseCase {
 class SearchProductsUseCase {
   final ChatRepository repo;
   SearchProductsUseCase(this.repo);
-  Future<Either<Failure, List<ChatProductEntity>>> call(String query, {int page = 1}) =>
+  Future<Either<Failure, ChatProductsPage>> call(String query, {int page = 1}) =>
       repo.searchProducts(query, page: page);
 }
 
-class HasMoreProductsUseCase {
+class MarkChatAsReadUseCase {
   final ChatRepository repo;
-  HasMoreProductsUseCase(this.repo);
-  Future<Either<Failure, bool>> call(String query, int page) =>
-      repo.hasMoreProducts(query, page);
+  MarkChatAsReadUseCase(this.repo);
+  Future<Either<Failure, void>> call(int roomId) => repo.markAsRead(roomId);
 }

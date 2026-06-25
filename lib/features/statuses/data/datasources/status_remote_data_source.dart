@@ -34,7 +34,8 @@ class StatusRemoteDataSourceImpl implements StatusRemoteDataSource {
         ApiConstants.statuses,
         queryParameters: category != null ? {'category': category} : null,
       );
-      final list = res.data as List;
+      final data = res.data;
+      final list = data is Map ? (data['results'] as List? ?? []) : (data as List? ?? []);
       return list.map((e) => StatusModel.fromJson(e as Map<String, dynamic>)).toList();
     } on DioException catch (e) {
       throw dioFailure(e, 'Statuslarni yuklashda xatolik');

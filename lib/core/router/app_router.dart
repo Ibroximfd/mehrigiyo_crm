@@ -8,9 +8,7 @@ import '../../features/operators/presentation/bloc/operators_bloc.dart';
 import '../../features/operators/presentation/pages/operators_page.dart';
 import '../../features/statuses/presentation/bloc/statuses_bloc.dart';
 import '../../features/statuses/presentation/pages/statuses_page.dart';
-import '../../features/leads/presentation/bloc/leads_bloc.dart';
 import '../../features/leads/presentation/bloc/admin_leads_bloc.dart';
-import '../../features/leads/presentation/pages/my_leads_page.dart';
 import '../../features/leads/presentation/pages/admin_leads_page.dart';
 import '../../features/leads/presentation/pages/lead_detail_page.dart';
 import '../../features/kanban/presentation/bloc/kanban_bloc.dart';
@@ -188,16 +186,6 @@ final GoRouter appRouter = GoRouter(
             BlocProvider(
               create: (_) => getIt<KanbanBloc>()..add(const KanbanLoadRequested()),
               child: const KanbanPage(),
-            ),
-          ),
-        ),
-        GoRoute(
-          path: RouteNames.sellerLeads,
-          pageBuilder: (ctx, state) => _pageTransition(
-            ctx, state,
-            BlocProvider(
-              create: (_) => getIt<LeadsBloc>()..add(const LeadsLoadRequested()),
-              child: const MyLeadsPage(),
             ),
           ),
         ),

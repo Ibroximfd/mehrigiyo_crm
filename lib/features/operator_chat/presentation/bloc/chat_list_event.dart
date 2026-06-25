@@ -17,3 +17,24 @@ class ChatListCreateRoomRequested extends ChatListEvent {
   @override
   List<Object?> get props => [phone, leadId];
 }
+
+class ChatListRoomRead extends ChatListEvent {
+  final int roomId;
+  const ChatListRoomRead(this.roomId);
+  @override
+  List<Object?> get props => [roomId];
+}
+
+class ChatListWsConnectRequested extends ChatListEvent {
+  final List<int> roomIds;
+  const ChatListWsConnectRequested(this.roomIds);
+  @override
+  List<Object?> get props => [roomIds];
+}
+
+class _ChatListWsMessageReceived extends ChatListEvent {
+  final Map<String, dynamic> data;
+  const _ChatListWsMessageReceived(this.data);
+  @override
+  List<Object?> get props => [data];
+}

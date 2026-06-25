@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/router/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/di/di_setup.dart';
 import '../../../operator_chat/domain/usecases/chat_usecases.dart';
@@ -8,6 +12,8 @@ import '../../../operator_order/presentation/widgets/create_operator_order_dialo
 import '../bloc/lead_detail_bloc.dart';
 import '../../domain/entities/lead_entity.dart';
 import '../../domain/usecases/lead_usecases.dart';
+import '../../../statuses/domain/usecases/status_usecases.dart';
+import '../../../statuses/presentation/widgets/status_picker_dialog.dart';
 
 class LeadDetailPage extends StatelessWidget {
   final int leadId;
@@ -20,6 +26,7 @@ class LeadDetailPage extends StatelessWidget {
         getDetail: getIt<GetLeadDetailUseCase>(),
         changeStatus: getIt<ChangeLeadStatusUseCase>(),
         getHistory: getIt<GetLeadHistoryUseCase>(),
+        getStatuses: getIt<GetStatusesUseCase>(),
       )..add(LeadDetailLoadRequested(leadId)),
       child: _LeadDetailView(leadId: leadId),
     );
@@ -42,20 +49,31 @@ class _LeadDetailView extends StatelessWidget {
         actions: [
           BlocBuilder<LeadDetailBloc, LeadDetailState>(
             builder: (ctx, state) {
-              if (state is LeadDetailLoaded) {
+              final lead = state is LeadDetailLoaded
+                  ? state.lead
+                  : state is LeadDetailChangingStatus
+                  ? state.lead
+                  : null;
+              if (lead != null) {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.shopping_cart_outlined),
-                      tooltip: 'Buyurtma yaratish',
-                      onPressed: () => _showCreateOrderDialog(ctx, state.lead),
+                      icon: const Icon(Icons.chat_bubble_rounded),
+                      tooltip: 'Chat ochish',
+                      onPressed: () => _openChat(ctx, lead),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.swap_horiz_rounded),
-                      tooltip: 'Status o\'zgartirish',
-                      onPressed: () => _showStatusSheet(ctx, state),
+                      icon: const Icon(Icons.shopping_cart_outlined),
+                      tooltip: 'Buyurtma yaratish',
+                      onPressed: () => _showCreateOrderDialog(ctx, lead),
                     ),
+                    if (state is LeadDetailLoaded)
+                      IconButton(
+                        icon: const Icon(Icons.swap_horiz_rounded),
+                        tooltip: 'Status o\'zgartirish',
+                        onPressed: () => _showStatusSheet(ctx, state),
+                      ),
                   ],
                 );
               }
@@ -68,22 +86,30 @@ class _LeadDetailView extends StatelessWidget {
         listenWhen: (_, s) => s is LeadDetailLoaded && s.statusError != null,
         listener: (ctx, state) {
           if (state is LeadDetailLoaded && state.statusError != null) {
-            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-              content: Text(state.statusError!),
-              backgroundColor: AppColors.error,
-            ));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(state.statusError!),
+                backgroundColor: AppColors.error,
+              ),
+            );
           }
         },
         builder: (ctx, state) {
           if (state is LeadDetailLoading) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            );
           }
           if (state is LeadDetailError) {
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    size: 48,
+                    color: AppColors.error,
+                  ),
                   const SizedBox(height: 12),
                   Text(state.message),
                   const SizedBox(height: 16),
@@ -101,13 +127,13 @@ class _LeadDetailView extends StatelessWidget {
           final lead = state is LeadDetailLoaded
               ? state.lead
               : state is LeadDetailChangingStatus
-                  ? state.lead
-                  : null;
+              ? state.lead
+              : null;
           final history = state is LeadDetailLoaded
               ? state.history
               : state is LeadDetailChangingStatus
-                  ? state.history
-                  : <LeadStatusHistory>[];
+              ? state.history
+              : <LeadStatusHistory>[];
           final changingStatus = state is LeadDetailChangingStatus;
 
           if (lead == null) return const SizedBox.shrink();
@@ -127,11 +153,18 @@ class _LeadDetailView extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
                           ),
                           SizedBox(width: 8),
-                          Text('Status o\'zgartirilmoqda...', style: TextStyle(color: Color(0xFF64748B))),
+                          Text(
+                            'Status o\'zgartirilmoqda...',
+                            style: TextStyle(color: Color(0xFF64748B)),
+                          ),
                         ],
                       ),
                     ),
@@ -146,6 +179,36 @@ class _LeadDetailView extends StatelessWidget {
     );
   }
 
+  Future<void> _openChat(BuildContext context, LeadEntity lead) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+    final result = await GetIt.I<CreateChatRoomUseCase>()(
+      phone: lead.phone,
+      leadId: lead.id,
+    );
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    result.fold(
+      (f) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(f.message), backgroundColor: AppColors.error),
+      ),
+      (room) => context.push(
+        RouteNames.sellerChatRoom(room.id),
+        extra: {
+          'name': room.participantName,
+          'phone': room.participantPhone,
+          'leadId': lead.id,
+        },
+      ),
+    );
+  }
+
   void _showCreateOrderDialog(BuildContext context, LeadEntity lead) {
     showDialog(
       context: context,
@@ -153,26 +216,20 @@ class _LeadDetailView extends StatelessWidget {
         providers: [
           BlocProvider(create: (_) => getIt<OperatorOrderBloc>()),
           RepositoryProvider.value(value: getIt<SearchProductsUseCase>()),
-          RepositoryProvider.value(value: getIt<HasMoreProductsUseCase>()),
         ],
-        child: CreateOperatorOrderDialog(
-          phone: lead.phone,
-          leadId: lead.id,
-        ),
+        child: CreateOperatorOrderDialog(phone: lead.phone, leadId: lead.id),
       ),
     );
   }
 
   void _showStatusSheet(BuildContext context, LeadDetailLoaded state) {
-    showModalBottomSheet(
+    showStatusPickerDialog(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => BlocProvider.value(
-        value: context.read<LeadDetailBloc>(),
-        child: _StatusSheet(lead: state.lead),
+      leadName: state.lead.fullName,
+      currentStatusId: state.lead.statusId,
+      statuses: state.statuses,
+      onSelected: (statusId) => context.read<LeadDetailBloc>().add(
+        LeadStatusChangeRequested(statusId),
       ),
     );
   }
@@ -200,7 +257,9 @@ class _LeadInfoCard extends StatelessWidget {
                 radius: 28,
                 backgroundColor: AppColors.primaryLight,
                 child: Text(
-                  lead.fullName.isNotEmpty ? lead.fullName[0].toUpperCase() : '?',
+                  lead.fullName.isNotEmpty
+                      ? lead.fullName[0].toUpperCase()
+                      : '?',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -216,11 +275,46 @@ class _LeadInfoCard extends StatelessWidget {
                     Text(
                       lead.fullName,
                       style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1E293B),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(lead.phone, style: const TextStyle(color: Color(0xFF64748B))),
+                    InkWell(
+                      onTap: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: lead.phone),
+                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Telefon raqami nusxalandi!'),
+                              backgroundColor: AppColors.success,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            lead.phone,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 13,
+                            color: AppColors.textMuted,
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -228,12 +322,29 @@ class _LeadInfoCard extends StatelessWidget {
           ),
           const Divider(height: 24),
           if (lead.region != null && lead.region!.isNotEmpty)
-            _InfoRow(icon: Icons.location_on_rounded, label: 'Hudud', value: lead.region!),
+            _InfoRow(
+              icon: Icons.location_on_rounded,
+              label: 'Hudud',
+              value: lead.region!,
+            ),
           if (lead.assignedTo != null)
-            _InfoRow(icon: Icons.person_rounded, label: 'Sotuvchi', value: lead.assignedTo!.fullName),
-          _InfoRow(icon: Icons.source_rounded, label: 'Manba', value: _sourceLabel(lead.source)),
+            _InfoRow(
+              icon: Icons.person_rounded,
+              label: 'Sotuvchi',
+              value: lead.assignedTo!.fullName,
+            ),
+          _InfoRow(
+            icon: Icons.source_rounded,
+            label: 'Manba',
+            value: _sourceLabel(lead.source),
+          ),
           if (lead.note != null && lead.note!.isNotEmpty)
-            _InfoRow(icon: Icons.notes_rounded, label: 'Izoh', value: lead.note!, maxLines: 4),
+            _InfoRow(
+              icon: Icons.notes_rounded,
+              label: 'Izoh',
+              value: lead.note!,
+              maxLines: 4,
+            ),
           _InfoRow(
             icon: Icons.access_time_rounded,
             label: 'Qo\'shilgan',
@@ -246,8 +357,11 @@ class _LeadInfoCard extends StatelessWidget {
 
   String _sourceLabel(String source) {
     const map = {
-      'manual': 'Qo\'lda', 'app': 'Ilova',
-      'instagram': 'Instagram', 'facebook': 'Facebook', 'bitrix': 'Bitrix',
+      'manual': 'Qo\'lda',
+      'app': 'Ilova',
+      'instagram': 'Instagram',
+      'facebook': 'Facebook',
+      'bitrix': 'Bitrix',
     };
     return map[source] ?? source;
   }
@@ -255,8 +369,8 @@ class _LeadInfoCard extends StatelessWidget {
   String _formatDate(String iso) {
     try {
       final dt = DateTime.parse(iso).toLocal();
-      return '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year} '
-          '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year} '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return iso;
     }
@@ -287,12 +401,20 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             '$label: ',
-            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: Color(0xFF1E293B), fontSize: 13, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Color(0xFF1E293B),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
             ),
@@ -324,7 +446,10 @@ class _HistoryCard extends StatelessWidget {
             children: [
               Icon(Icons.history_rounded, size: 18, color: AppColors.primary),
               SizedBox(width: 8),
-              Text('Holat tarixi', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              Text(
+                'Holat tarixi',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -342,7 +467,7 @@ class _HistoryItem extends StatelessWidget {
   String _formatDate(String iso) {
     try {
       final dt = DateTime.parse(iso).toLocal();
-      return '${dt.day.toString().padLeft(2,'0')}.${dt.month.toString().padLeft(2,'0')}.${dt.year}';
+      return '${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}';
     } catch (_) {
       return iso;
     }
@@ -357,7 +482,8 @@ class _HistoryItem extends StatelessWidget {
         children: [
           Container(
             margin: const EdgeInsets.only(top: 3),
-            width: 8, height: 8,
+            width: 8,
+            height: 8,
             decoration: const BoxDecoration(
               color: AppColors.primary,
               shape: BoxShape.circle,
@@ -371,63 +497,44 @@ class _HistoryItem extends StatelessWidget {
                 Row(
                   children: [
                     if (item.fromStatusName != null) ...[
-                      Text(item.fromStatusName!, style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                      Text(
+                        item.fromStatusName!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Icon(Icons.arrow_right_alt_rounded, size: 16, color: Color(0xFF94A3B8)),
+                        child: Icon(
+                          Icons.arrow_right_alt_rounded,
+                          size: 16,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
                     ],
                     Flexible(
                       child: Text(
                         item.toStatusName,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 Text(
                   '${_formatDate(item.createdAt)}${item.changedByName != null ? ' · ${item.changedByName}' : ''}',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusSheet extends StatelessWidget {
-  final LeadEntity lead;
-  const _StatusSheet({required this.lead});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Status tanlang',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Board ustuniga o\'tkazish',
-            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-          ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              'Status ro\'yxatini yuklash uchun\nKanban sahifasiga o\'ting',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF94A3B8)),
-            ),
-          ),
-          const SizedBox(height: 16),
         ],
       ),
     );

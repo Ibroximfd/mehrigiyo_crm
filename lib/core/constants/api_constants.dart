@@ -1,7 +1,12 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 class ApiConstants {
-  static String get baseUrl => kIsWeb ? '/api' : 'https://imorganic.uz/api';
+  static String get baseUrl {
+    // Production web (deployed on imorganic.uz): use relative path
+    // Debug web (localhost dev): use full URL
+    if (kIsWeb && !kDebugMode) return '/api';
+    return 'https://imorganic.uz/api';
+  }
 
   // Support auth (existing)
   static const String supportLogin = '/support/operator/login/';
@@ -57,11 +62,5 @@ class ApiConstants {
   static String adminOperatorStats(int operatorId) =>
       '/operator/admin/operators/$operatorId/stats/';
 
-  static String resolveMediaUrl(String url) {
-    if (url.isEmpty) return url;
-    if (!kIsWeb) return url;
-    const host = 'https://imorganic.uz';
-    if (url.startsWith('$host/media/')) return url.substring(host.length);
-    return url;
-  }
+  static String resolveMediaUrl(String url) => url;
 }

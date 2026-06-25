@@ -5,26 +5,52 @@ class ChatRoomModel extends ChatRoomEntity {
     required super.id,
     required super.participantName,
     required super.participantPhone,
+    super.avatarUrl,
     super.leadId,
     super.lastMessage,
+    super.lastMessageIsMine,
     super.lastMessageAt,
+    super.unreadCount,
   });
 
   factory ChatRoomModel.fromJson(Map<String, dynamic> json) {
-    final participant = json['participant'] as Map<String, dynamic>?;
+    // List endpoint: other_user | Create room endpoint: client | fallback: participant
+    final other = json['other_user'] as Map<String, dynamic>?
+        ?? json['client'] as Map<String, dynamic>?
+        ?? json['participant'] as Map<String, dynamic>?;
+
+    final firstName = other?['first_name']?.toString() ?? '';
+    final lastName = other?['last_name']?.toString() ?? '';
+    final fullName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+
+    // last_message can be object or null
+    final lastMsgRaw = json['last_message'];
+    String? lastMsg;
+    bool? lastMsgIsMine;
+    if (lastMsgRaw is Map) {
+      lastMsg = lastMsgRaw['text']?.toString();
+      lastMsgIsMine = lastMsgRaw['is_mine'] as bool?;
+    } else if (lastMsgRaw is String) {
+      lastMsg = lastMsgRaw;
+    }
+
     return ChatRoomModel(
       id: json['room_id'] as int? ?? json['id'] as int,
-      participantName: participant?['full_name']?.toString() ??
-          participant?['name']?.toString() ??
-          json['participant_name']?.toString() ??
-          '',
-      participantPhone: participant?['phone']?.toString() ??
-          json['participant_phone']?.toString() ??
-          '',
+      participantName: fullName.isNotEmpty
+          ? fullName
+          : other?['full_name']?.toString()
+              ?? other?['name']?.toString()
+              ?? json['participant_name']?.toString()
+              ?? '',
+      participantPhone: other?['phone']?.toString()
+          ?? json['participant_phone']?.toString()
+          ?? '',
+      avatarUrl: other?['avatar']?.toString(),
       leadId: json['lead_id'] as int?,
-      lastMessage: json['last_message']?.toString(),
-      lastMessageAt: json['last_message_at']?.toString() ??
-          json['updated_at']?.toString(),
+      lastMessage: lastMsg,
+      lastMessageIsMine: lastMsgIsMine,
+      lastMessageAt: json['updated_at']?.toString(),
+      unreadCount: json['unread_count'] as int? ?? 0,
     );
   }
 }
@@ -35,20 +61,117 @@ class ChatMessageModel extends ChatMessageEntity {
     required super.messageType,
     required super.text,
     required super.isMine,
+    super.isRead,
+    super.replyTo,
+    super.attachments,
     super.recommendation,
     required super.createdAt,
   });
 
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
     final recJson = json['recommendation'] as Map<String, dynamic>?;
+    final msgType = json['message_type']?.toString() ?? 'text';
+
+    // Parse attachments — try list first, then top-level file field
+    final attachmentsRaw = json['attachments'] as List? ?? [];
+    var attachments = attachmentsRaw
+        .map((a) => a is Map<String, dynamic>
+            ? _parseAttachment(a)
+            : a is String
+                ? _parseAttachmentFromUrl(a, msgType)
+                : null)
+        .whereType<ChatAttachment>()
+        .toList();
+
+    // Some APIs put the media directly on the message when attachment list is empty
+    if (attachments.isEmpty && msgType != 'text' && msgType != 'operator_recommendation') {
+      final topUrl = json['file']?.toString()
+          ?? json['media']?.toString()
+          ?? json['url']?.toString()
+          ?? json['voice']?.toString()
+          ?? json['audio']?.toString()
+          ?? json['image']?.toString()
+          ?? json['video']?.toString();
+      if (topUrl != null && topUrl.isNotEmpty) {
+        final a = _parseAttachmentFromUrl(topUrl, msgType);
+        if (a != null) attachments = [a];
+      }
+    }
+
+    // Parse reply_to
+    final replyRaw = json['reply_to'] as Map<String, dynamic>?;
+    ChatMessageReply? replyTo;
+    if (replyRaw != null) {
+      replyTo = ChatMessageReply(
+        id: replyRaw['id'] as int,
+        text: replyRaw['text']?.toString() ?? '',
+        messageType: replyRaw['message_type']?.toString() ?? 'text',
+        isMine: replyRaw['is_mine'] as bool? ?? false,
+      );
+    }
+
     return ChatMessageModel(
       id: json['id'] as int,
-      messageType: json['message_type']?.toString() ?? 'text',
+      messageType: msgType,
       text: json['text']?.toString() ?? '',
       isMine: json['is_mine'] as bool? ?? false,
+      isRead: json['is_read'] as bool? ?? false,
+      replyTo: replyTo,
+      attachments: attachments,
       recommendation: recJson != null ? _parseRecommendation(recJson) : null,
       createdAt: json['created_at']?.toString() ?? '',
     );
+  }
+
+  static ChatAttachment? _parseAttachment(Map<String, dynamic> json) {
+    final url = json['file']?.toString()
+        ?? json['url']?.toString()
+        ?? json['file_url']?.toString()
+        ?? '';
+    if (url.isEmpty) return null;
+    // Priority: explicit file_type field, then extension detection
+    final explicit = json['file_type']?.toString() ?? '';
+    final fileType = explicit.isNotEmpty ? _normalizeType(explicit) : _typeFromUrl(url);
+    return ChatAttachment(
+      url: url,
+      fileType: fileType,
+      fileName: url.split('/').last.split('?').first,
+    );
+  }
+
+  static ChatAttachment? _parseAttachmentFromUrl(String url, String msgType) {
+    if (url.isEmpty) return null;
+    final fileType = _typeFromMsgType(msgType) ?? _typeFromUrl(url);
+    return ChatAttachment(
+      url: url,
+      fileType: fileType,
+      fileName: url.split('/').last.split('?').first,
+    );
+  }
+
+  static String _typeFromUrl(String url) {
+    final ext = url.split('?').first.split('.').last.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'].contains(ext)) return 'image';
+    if (['mp4', 'mov', 'avi', 'mkv', 'webm', '3gp'].contains(ext)) return 'video';
+    if (['mp3', 'ogg', 'wav', 'm4a', 'aac', 'opus', 'amr'].contains(ext)) return 'audio';
+    return 'file';
+  }
+
+  static String _normalizeType(String t) {
+    if (['image', 'photo', 'picture'].contains(t)) return 'image';
+    if (['video', 'film'].contains(t)) return 'video';
+    if (['audio', 'voice', 'sound'].contains(t)) return 'audio';
+    return 'file';
+  }
+
+  static String? _typeFromMsgType(String msgType) {
+    switch (msgType) {
+      case 'image': return 'image';
+      case 'video': return 'video';
+      case 'audio':
+      case 'voice': return 'audio';
+      default: return null;
+    }
   }
 
   static ChatRecommendation _parseRecommendation(Map<String, dynamic> json) {

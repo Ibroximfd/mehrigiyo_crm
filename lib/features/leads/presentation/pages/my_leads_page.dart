@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/router/route_names.dart';
+import '../../../operator_chat/domain/usecases/chat_usecases.dart';
+import '../../domain/entities/lead_entity.dart';
 import '../bloc/leads_bloc.dart';
 import '../widgets/lead_card.dart';
 import '../widgets/create_lead_dialog.dart';
@@ -118,10 +121,11 @@ class MyLeadsPage extends StatelessWidget {
                                   )
                                 : const SizedBox(height: 80);
                           }
-                          final lead = leads[i];
+                          final lead = leads[i] as LeadEntity;
                           return LeadCard(
                             lead: lead,
                             onTap: () => ctx.push(RouteNames.sellerLeadDetail(lead.id)),
+                            onChatTap: () => _openChat(ctx, lead),
                           );
                         },
                         childCount: leads.length + 1,
@@ -133,6 +137,28 @@ class MyLeadsPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(BuildContext context, LeadEntity lead) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+    );
+    final result = await GetIt.I<CreateChatRoomUseCase>()(phone: lead.phone, leadId: lead.id);
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    result.fold(
+      (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(f.message),
+        backgroundColor: AppColors.error,
+      )),
+      (room) => context.push(
+        RouteNames.sellerChatRoom(room.id),
+        extra: {'name': room.participantName, 'phone': room.participantPhone, 'leadId': lead.id},
       ),
     );
   }

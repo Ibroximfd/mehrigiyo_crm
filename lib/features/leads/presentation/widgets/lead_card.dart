@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/lead_entity.dart';
 
-class LeadCard extends StatelessWidget {
+class LeadCard extends StatefulWidget {
   final LeadEntity lead;
   final VoidCallback? onTap;
+  final VoidCallback? onChatTap;
   final bool isSelected;
   final VoidCallback? onSelectionToggle;
   final String? statusColor;
@@ -13,10 +15,18 @@ class LeadCard extends StatelessWidget {
     super.key,
     required this.lead,
     this.onTap,
+    this.onChatTap,
     this.isSelected = false,
     this.onSelectionToggle,
     this.statusColor,
   });
+
+  @override
+  State<LeadCard> createState() => _LeadCardState();
+}
+
+class _LeadCardState extends State<LeadCard> {
+  bool _hovered = false;
 
   Color _parseColor(String? hex) {
     if (hex == null) return AppColors.primary;
@@ -30,131 +40,271 @@ class LeadCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onSelectionToggle,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryLight
-              : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Color(0xFFE8ECF0),
-            width: isSelected ? 1.5 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+    final hasActions = widget.onChatTap != null;
+    final isSelected = widget.isSelected;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onLongPress: widget.onSelectionToggle,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryLight : AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.primary
+                  : _hovered
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : const Color(0xFFE8ECF0),
+              width: isSelected ? 1.5 : 1,
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _hovered ? 0.07 : 0.03),
+                blurRadius: _hovered ? 10 : 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (onSelectionToggle != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10, top: 2),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected ? AppColors.primary : AppColors.border,
-                        width: 1.5,
-                      ),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: isSelected
-                        ? const Icon(Icons.check, size: 13, color: Colors.white)
-                        : null,
-                  ),
-                ),
-              Expanded(
-                child: Column(
+              // Main info
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            lead.fullName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: Color(0xFF1E293B),
+                    if (widget.onSelectionToggle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 10, top: 2),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.border,
+                              width: 1.5,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            borderRadius: BorderRadius.circular(5),
                           ),
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 13,
+                                  color: Colors.white,
+                                )
+                              : null,
                         ),
-                        const SizedBox(width: 8),
-                        if (statusColor != null)
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _parseColor(statusColor),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.phone_rounded, size: 13, color: Color(0xFF94A3B8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          lead.phone,
-                          style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                    if (lead.region != null && lead.region!.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Row(
+                      ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.location_on_rounded, size: 13, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Text(
-                            lead.region!,
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.lead.fullName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (widget.statusColor != null)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: _parseColor(widget.statusColor),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
                           ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.phone_rounded,
+                                size: 13,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              const SizedBox(width: 4),
+                              _PhoneCopy(phone: widget.lead.phone),
+                            ],
+                          ),
+                          if (widget.lead.region != null &&
+                              widget.lead.region!.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.location_on_rounded,
+                                  size: 13,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  widget.lead.region!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (widget.lead.assignedTo != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.person_rounded,
+                                  size: 13,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    widget.lead.assignedTo!.fullName,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
-                    ],
-                    if (lead.assignedTo != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.person_rounded, size: 13, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              lead.assignedTo!.fullName,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
+                    const SizedBox(width: 8),
+                    _SourceBadge(source: widget.lead.source),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              _SourceBadge(source: lead.source),
+
+              // Action row (only when actions are available)
+              if (hasActions)
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(14),
+                    ),
+                    border: Border(top: BorderSide(color: Color(0xFFEFF2F5))),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  child: Row(
+                    children: [
+                      _CardAction(
+                        icon: Icons.chat_bubble_rounded,
+                        color: const Color(0xFF10B981),
+                        bgColor: const Color(0xFFD1FAE5),
+                        tooltip: 'Chat ochish',
+                        onTap: widget.onChatTap,
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CardAction extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final Color bgColor;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _CardAction({
+    required this.icon,
+    required this.color,
+    required this.bgColor,
+    required this.tooltip,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 17, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhoneCopy extends StatelessWidget {
+  final String phone;
+  const _PhoneCopy({required this.phone});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        await Clipboard.setData(ClipboardData(text: phone));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Telefon raqami nusxalandi!'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            phone,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.copy_rounded, size: 13, color: AppColors.textMuted),
+        ],
       ),
     );
   }

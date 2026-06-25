@@ -14,7 +14,6 @@ class OperatorSellerLayout extends StatelessWidget {
 
   static const _routes = [
     RouteNames.sellerKanban,
-    RouteNames.sellerLeads,
     RouteNames.sellerConsultations,
     RouteNames.sellerChat,
     RouteNames.sellerStatistics,
@@ -22,13 +21,10 @@ class OperatorSellerLayout extends StatelessWidget {
 
   int _selectedIndex(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
-    if (path.startsWith(RouteNames.sellerStatistics)) return 4;
-    if (path.startsWith(RouteNames.sellerChat)) return 3;
-    if (path.startsWith(RouteNames.sellerConsultations)) return 2;
-    if (path.startsWith(RouteNames.sellerLeads) ||
-        path.contains('/op/seller/leads/')) {
-      return 1;
-    }
+    if (path.startsWith(RouteNames.sellerStatistics)) return 3;
+    if (path.startsWith(RouteNames.sellerChat)) return 2;
+    if (path.startsWith(RouteNames.sellerConsultations)) return 1;
+    // Board (kanban) is the default — lead detail pages open from the board too
     return 0;
   }
 
@@ -77,11 +73,6 @@ class OperatorSellerLayout extends StatelessWidget {
                   icon: Icons.view_kanban_outlined,
                   selectedIcon: Icons.view_kanban_rounded,
                   label: 'Board',
-                ),
-                const OpNavItem(
-                  icon: Icons.people_outline_rounded,
-                  selectedIcon: Icons.people_rounded,
-                  label: 'Mening leadlarim',
                 ),
                 OpNavItem(
                   icon: Icons.mail_outline_rounded,
@@ -154,11 +145,6 @@ class _MobileSellerLayout extends StatelessWidget {
                     icon: Icon(Icons.view_kanban_outlined),
                     selectedIcon: Icon(Icons.view_kanban_rounded),
                     label: 'Board',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.people_outline_rounded),
-                    selectedIcon: Icon(Icons.people_rounded),
-                    label: 'Leadlarim',
                   ),
                   NavigationDestination(
                     icon: badge.newConsultations > 0

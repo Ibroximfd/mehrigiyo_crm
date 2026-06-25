@@ -1,28 +1,92 @@
+import 'dart:ui_web' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:web/web.dart' as web;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/chat_entities.dart';
 
+// Tracks already-registered HtmlElementView factories to avoid duplicate registration
+final _registeredViewIds = <String>{};
+
+void _registerViewFactory(String viewId, web.HTMLElement Function() builder) {
+  if (_registeredViewIds.contains(viewId)) return;
+  _registeredViewIds.add(viewId);
+  ui.platformViewRegistry.registerViewFactory(viewId, (_) => builder());
+}
+
 class MessageBubble extends StatelessWidget {
   final ChatMessageEntity message;
+  final VoidCallback? onReply;
 
-  /// Agar berilsa, recommendation bubble'da "Buyurtma" tugmasi chiqadi
-  final VoidCallback? onCreateOrder;
-
-  const MessageBubble({super.key, required this.message, this.onCreateOrder});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.onReply,
+  });
 
   @override
   Widget build(BuildContext context) {
+    Widget bubble;
     if (message.isRecommendation && message.recommendation != null) {
-      return _RecommendationBubble(
+      bubble = _RecommendationBubble(
         message: message,
         rec: message.recommendation!,
-        onCreateOrder: onCreateOrder,
       );
+    } else if (message.hasMedia) {
+      bubble = _MediaBubble(message: message);
+    } else {
+      bubble = _TextBubble(message: message);
     }
-    return _TextBubble(message: message);
+
+    return GestureDetector(
+      onDoubleTap: onReply,
+      child: bubble,
+    );
   }
 }
+
+// ─── Reply preview (inside bubble) ───────────────────────────────────────────
+
+class _ReplyPreview extends StatelessWidget {
+  final ChatMessageReply reply;
+  final bool isMine;
+  const _ReplyPreview({required this.reply, required this.isMine});
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isMine
+        ? Colors.white.withValues(alpha: 0.18)
+        : AppColors.primaryLight;
+    final accent = isMine ? Colors.white70 : AppColors.primary;
+    final textColor = isMine ? Colors.white70 : const Color(0xFF475569);
+
+    String preview;
+    if (reply.messageType == 'operator_recommendation') {
+      preview = '📦 Mahsulot tavsiyasi';
+    } else {
+      preview = reply.text.isNotEmpty ? reply.text : '📎 Media';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: accent, width: 3)),
+      ),
+      child: Text(
+        preview,
+        style: TextStyle(fontSize: 12, color: textColor, height: 1.3),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+// ─── Text bubble ─────────────────────────────────────────────────────────────
 
 class _TextBubble extends StatelessWidget {
   final ChatMessageEntity message;
@@ -57,21 +121,327 @@ class _TextBubble extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                color: isMine ? Colors.white : const Color(0xFF1E293B),
-                fontSize: 14,
-                height: 1.4,
+            if (message.replyTo != null)
+              _ReplyPreview(reply: message.replyTo!, isMine: isMine),
+            if (message.text.isNotEmpty)
+              Text(
+                message.text,
+                style: TextStyle(
+                  color: isMine ? Colors.white : const Color(0xFF1E293B),
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+            const SizedBox(height: 4),
+            _TimeRow(
+              createdAt: message.createdAt,
+              isMine: isMine,
+              isRead: message.isRead,
+              isPending: message.id < 0,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Media bubble ─────────────────────────────────────────────────────────────
+
+class _MediaBubble extends StatelessWidget {
+  final ChatMessageEntity message;
+  const _MediaBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMine = message.isMine;
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isMine ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMine ? 18 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 18),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMine ? 18 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (message.replyTo != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  child: _ReplyPreview(reply: message.replyTo!, isMine: isMine),
+                ),
+              // If attachments parsed, show them; else show fallback card from message_type
+              if (message.attachments.isNotEmpty)
+                ...message.attachments.map((a) => _AttachmentWidget(attachment: a, isMine: isMine))
+              else
+                // No parsed attachment — show type-based card (URL unknown, no action)
+                _MediaCard(
+                  icon: _iconForType(message.messageType),
+                  label: _labelForType(message.messageType),
+                  isMine: isMine,
+                  iconColor: _colorForType(message.messageType),
+                  bgColor: _bgForType(message.messageType, isMine),
+                ),
+              if (message.text.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: isMine ? Colors.white : const Color(0xFF1E293B),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                child: _TimeRow(
+                  createdAt: message.createdAt,
+                  isMine: isMine,
+                  isRead: message.isRead,
+                  isPending: message.id < 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachmentWidget extends StatelessWidget {
+  final ChatAttachment attachment;
+  final bool isMine;
+  const _AttachmentWidget({required this.attachment, required this.isMine});
+
+  String get _resolvedUrl => ApiConstants.resolveMediaUrl(attachment.url);
+
+  @override
+  Widget build(BuildContext context) {
+    switch (attachment.fileType) {
+      case 'image':
+        return GestureDetector(
+          onTap: () => _showImageDialog(context),
+          child: ClipRect(
+            child: Image.network(
+              _resolvedUrl,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: 200,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : Container(
+                      height: 200,
+                      color: Colors.black12,
+                      child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+              errorBuilder: (_, e, s) => _MediaCard(
+                icon: Icons.broken_image_rounded,
+                label: attachment.fileName ?? 'Rasm',
+                isMine: isMine,
+                onTap: () => _showImageDialog(context),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(message.createdAt),
-              style: TextStyle(
-                fontSize: 10,
-                color: isMine ? Colors.white70 : const Color(0xFF94A3B8),
+          ),
+        );
+      case 'audio':
+      case 'voice':
+        return _MediaCard(
+          icon: Icons.mic_rounded,
+          label: attachment.fileName ?? 'Ovozli xabar',
+          isMine: isMine,
+          onTap: () => _showAudioDialog(context),
+          iconColor: const Color(0xFF10B981),
+          bgColor: const Color(0xFFD1FAE5),
+        );
+      case 'video':
+        return _MediaCard(
+          icon: Icons.videocam_rounded,
+          label: attachment.fileName ?? 'Video',
+          isMine: isMine,
+          onTap: () => _showVideoDialog(context),
+          iconColor: const Color(0xFF6366F1),
+          bgColor: const Color(0xFFE0E7FF),
+        );
+      default:
+        return _MediaCard(
+          icon: Icons.attach_file_rounded,
+          label: attachment.fileName ?? 'Fayl',
+          isMine: isMine,
+          // For generic files, open in new tab as there's no embed option
+          onTap: () {
+            if (kIsWeb) web.window.open(_resolvedUrl, '_blank');
+          },
+        );
+    }
+  }
+
+  void _showImageDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Image.network(
+                _resolvedUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (_, e, s) => const Center(
+                  child: Icon(Icons.broken_image_rounded,
+                      color: Colors.white, size: 64),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child:
+                      const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAudioDialog(BuildContext context) {
+    final viewId = 'audio-${attachment.url.hashCode}';
+    _registerViewFactory(viewId, () {
+      return web.HTMLAudioElement()
+        ..src = _resolvedUrl
+        ..controls = true
+        ..style.width = '100%'
+        ..style.outline = 'none';
+    });
+
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFD1FAE5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.mic_rounded,
+                    color: Color(0xFF10B981), size: 28),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                attachment.fileName ?? 'Ovozli xabar',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 320,
+                height: 48,
+                child: HtmlElementView(viewType: viewId),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showVideoDialog(BuildContext context) {
+    final viewId = 'video-${attachment.url.hashCode}';
+    _registerViewFactory(viewId, () {
+      return web.HTMLVideoElement()
+        ..src = _resolvedUrl
+        ..controls = true
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.background = '#000'
+        ..style.borderRadius = '12px';
+    });
+
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.all(24),
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                width: 560,
+                height: 360,
+                child: HtmlElementView(viewType: viewId),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 18),
+                ),
               ),
             ),
           ],
@@ -81,11 +451,135 @@ class _TextBubble extends StatelessWidget {
   }
 }
 
+class _MediaCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isMine;
+  final VoidCallback? onTap;
+  final Color? iconColor;
+  final Color? bgColor;
+
+  const _MediaCard({
+    required this.icon,
+    required this.label,
+    required this.isMine,
+    this.onTap,
+    this.iconColor,
+    this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ic = iconColor ?? (isMine ? Colors.white70 : AppColors.primary);
+    final bg = bgColor ?? (isMine ? Colors.white12 : AppColors.primaryLight);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              child: Icon(icon, color: ic, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: isMine ? Colors.white : const Color(0xFF1E293B),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  Text(
+                    'Ochish uchun bosing',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isMine ? Colors.white54 : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.open_in_new_rounded,
+                size: 14, color: isMine ? Colors.white38 : const Color(0xFFCBD5E1)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Time + read ─────────────────────────────────────────────────────────────
+
+class _TimeRow extends StatelessWidget {
+  final String createdAt;
+  final bool isMine;
+  final bool isRead;
+  final bool isPending;
+  const _TimeRow({
+    required this.createdAt,
+    required this.isMine,
+    required this.isRead,
+    this.isPending = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isMine ? Colors.white70 : const Color(0xFF94A3B8);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _fmt(createdAt),
+          style: TextStyle(fontSize: 10, color: color),
+        ),
+        if (isMine) ...[
+          const SizedBox(width: 4),
+          Icon(
+            isPending
+                ? Icons.access_time_rounded
+                : isRead
+                    ? Icons.done_all_rounded
+                    : Icons.done_rounded,
+            size: 13,
+            color: isPending
+                ? Colors.white38
+                : isRead
+                    ? const Color(0xFF34D399)
+                    : Colors.white54,
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _fmt(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '';
+    }
+  }
+}
+
+// ─── Recommendation bubble ────────────────────────────────────────────────────
+
 class _RecommendationBubble extends StatelessWidget {
   final ChatMessageEntity message;
   final ChatRecommendation rec;
-  final VoidCallback? onCreateOrder;
-  const _RecommendationBubble({required this.message, required this.rec, this.onCreateOrder});
+  const _RecommendationBubble({required this.message, required this.rec});
 
   @override
   Widget build(BuildContext context) {
@@ -94,18 +588,18 @@ class _RecommendationBubble extends StatelessWidget {
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.86,
         ),
         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -117,7 +611,7 @@ class _RecommendationBubble extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: const BoxDecoration(
                 color: AppColors.primaryLight,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
               ),
               child: Row(
                 children: [
@@ -126,9 +620,7 @@ class _RecommendationBubble extends StatelessWidget {
                   Text(
                     rec.type == 'operator' ? 'Operator tavsiyasi' : 'Doktor tavsiyasi',
                     style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
+                      fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary,
                     ),
                   ),
                   const Spacer(),
@@ -147,32 +639,19 @@ class _RecommendationBubble extends StatelessWidget {
                 ],
               ),
             ),
-            // Products
-            ...rec.products.map((p) => _ProductCard(product: p)),
-            // Buyurtma tugmasi (faqat operator tavsiyasida, muddati o'tmagan)
-            if (rec.type == 'operator' && !rec.isExpired && onCreateOrder != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: onCreateOrder,
-                    icon: const Icon(Icons.shopping_cart_outlined, size: 15),
-                    label: const Text('Buyurtma qilish', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ),
-              ),
-            // Footer time
+            // Product list
+            ...rec.products.asMap().entries.map((e) => Column(
+              children: [
+                if (e.key > 0)
+                  const Divider(height: 1, indent: 14, endIndent: 14, color: Color(0xFFF1F5F9)),
+                _ProductCard(product: e.value),
+              ],
+            )),
+            // Time
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
               child: Text(
-                _formatTime(message.createdAt),
+                _fmtTime(message.createdAt),
                 style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
                 textAlign: isMine ? TextAlign.right : TextAlign.left,
               ),
@@ -191,56 +670,84 @@ class _ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Image
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: product.image.isNotEmpty
                 ? Image.network(
                     ApiConstants.resolveMediaUrl(product.image),
-                    width: 48,
-                    height: 48,
+                    width: 72,
+                    height: 72,
                     fit: BoxFit.cover,
-                    errorBuilder: (context2, e, s) => _imgPlaceholder(),
+                    errorBuilder: (_, e, s) => _imgPlaceholder(),
                   )
                 : _imgPlaceholder(),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
+          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   product.title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E293B),
+                    height: 1.3,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    if (product.discount > 0) ...[
-                      Text(
-                        '${_fmt(product.cost)} so\'m',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFF94A3B8),
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ],
+                    // Final price
                     Text(
                       '${_fmt(product.finalPrice)} so\'m',
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppColors.primary,
                       ),
                     ),
+                    if (product.discount > 0) ...[
+                      const SizedBox(width: 6),
+                      // Discount badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '-${product.discount}%',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFDC3545),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
+                if (product.discount > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${_fmt(product.cost)} so\'m',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -250,10 +757,13 @@ class _ProductCard extends StatelessWidget {
   }
 
   Widget _imgPlaceholder() => Container(
-        width: 48,
-        height: 48,
-        color: const Color(0xFFF1F5F9),
-        child: const Icon(Icons.inventory_2_outlined, size: 20, color: Color(0xFFCBD5E1)),
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.inventory_2_outlined, size: 28, color: Color(0xFFCBD5E1)),
       );
 
   String _fmt(int v) {
@@ -267,13 +777,52 @@ class _ProductCard extends StatelessWidget {
   }
 }
 
-String _formatTime(String iso) {
+String _fmtTime(String iso) {
   try {
     final dt = DateTime.parse(iso).toLocal();
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   } catch (_) {
     return '';
+  }
+}
+
+IconData _iconForType(String t) {
+  switch (t) {
+    case 'image': return Icons.image_rounded;
+    case 'video': return Icons.videocam_rounded;
+    case 'audio':
+    case 'voice': return Icons.mic_rounded;
+    default: return Icons.attach_file_rounded;
+  }
+}
+
+String _labelForType(String t) {
+  switch (t) {
+    case 'image': return 'Rasm';
+    case 'video': return 'Video';
+    case 'audio':
+    case 'voice': return 'Ovozli xabar';
+    default: return 'Fayl';
+  }
+}
+
+Color _colorForType(String t) {
+  switch (t) {
+    case 'image': return const Color(0xFF6366F1);
+    case 'video': return const Color(0xFF6366F1);
+    case 'audio':
+    case 'voice': return const Color(0xFF10B981);
+    default: return AppColors.primary;
+  }
+}
+
+Color _bgForType(String t, bool isMine) {
+  if (isMine) return Colors.white12;
+  switch (t) {
+    case 'image': return const Color(0xFFE0E7FF);
+    case 'video': return const Color(0xFFE0E7FF);
+    case 'audio':
+    case 'voice': return const Color(0xFFD1FAE5);
+    default: return AppColors.primaryLight;
   }
 }

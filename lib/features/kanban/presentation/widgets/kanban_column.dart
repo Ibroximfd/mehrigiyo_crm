@@ -10,6 +10,7 @@ class KanbanColumn extends StatelessWidget {
   final List<StatusEntity> allStatuses;
   final void Function(int leadId, int newStatusId, int oldStatusId) onStatusChange;
   final void Function(int leadId) onLeadTap;
+  final void Function(LeadEntity lead) onChatTap;
 
   const KanbanColumn({
     super.key,
@@ -18,6 +19,7 @@ class KanbanColumn extends StatelessWidget {
     required this.allStatuses,
     required this.onStatusChange,
     required this.onLeadTap,
+    required this.onChatTap,
   });
 
   Color _hexColor(String hex) {
@@ -117,6 +119,7 @@ class KanbanColumn extends StatelessWidget {
                       allStatuses: allStatuses,
                       onStatusChange: (newId) => onStatusChange(leads[i].id, newId, status.id),
                       onTap: () => onLeadTap(leads[i].id),
+                      onChatTap: () => onChatTap(leads[i]),
                     ),
                   ),
           ),

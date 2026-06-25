@@ -14,7 +14,8 @@ class OperatorOrderModel extends OperatorOrderEntity {
     return OperatorOrderModel(
       orderNumber: orderData['order_number']?.toString() ?? '',
       status: orderData['status']?.toString() ?? 'confirming',
-      totalAmount: (orderData['total_amount'] as num?)?.toDouble() ?? 0,
+      // API returns string e.g. "500.00"
+      totalAmount: double.tryParse(orderData['total_amount']?.toString() ?? '') ?? 0,
       items: itemsJson
           .map((e) => _parseItem(e as Map<String, dynamic>))
           .toList(),
@@ -22,12 +23,16 @@ class OperatorOrderModel extends OperatorOrderEntity {
   }
 
   static OperatorOrderItem _parseItem(Map<String, dynamic> json) {
-    final product = json['product'] as Map<String, dynamic>?;
+    // API returns 'medicine' key, not 'product'
+    final product = (json['medicine'] ?? json['product']) as Map<String, dynamic>?;
     return OperatorOrderItem(
-      productId: (product?['id'] ?? json['product_id']) as int? ?? 0,
-      productTitle: product?['title']?.toString() ?? json['product_title']?.toString() ?? '',
+      productId: product?['id'] as int? ?? json['product_id'] as int? ?? 0,
+      productTitle: product?['title']?.toString() ?? '',
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-      price: (json['price'] ?? json['total_price'] as num?)?.toDouble() ?? 0,
+      // price/total are strings from API
+      price: double.tryParse(
+        (json['total'] ?? json['price'] ?? json['total_price'])?.toString() ?? '',
+      ) ?? 0,
     );
   }
 }

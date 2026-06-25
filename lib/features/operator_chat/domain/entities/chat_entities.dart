@@ -4,21 +4,53 @@ class ChatRoomEntity extends Equatable {
   final int id;
   final String participantName;
   final String participantPhone;
+  final String? avatarUrl;
   final int? leadId;
   final String? lastMessage;
+  final bool? lastMessageIsMine;
   final String? lastMessageAt;
+  final int unreadCount;
 
   const ChatRoomEntity({
     required this.id,
     required this.participantName,
     required this.participantPhone,
+    this.avatarUrl,
     this.leadId,
     this.lastMessage,
+    this.lastMessageIsMine,
     this.lastMessageAt,
+    this.unreadCount = 0,
   });
 
   @override
-  List<Object?> get props => [id, participantName, participantPhone, leadId, lastMessage, lastMessageAt];
+  List<Object?> get props => [
+        id, participantName, participantPhone, avatarUrl,
+        leadId, lastMessage, lastMessageIsMine, lastMessageAt, unreadCount
+      ];
+
+  ChatRoomEntity copyWithUnread(int unreadCount) => copyWith(unreadCount: unreadCount);
+
+  ChatRoomEntity copyWith({
+    String? participantName,
+    String? participantPhone,
+    String? avatarUrl,
+    int? leadId,
+    String? lastMessage,
+    bool? lastMessageIsMine,
+    String? lastMessageAt,
+    int? unreadCount,
+  }) => ChatRoomEntity(
+    id: id,
+    participantName: participantName ?? this.participantName,
+    participantPhone: participantPhone ?? this.participantPhone,
+    avatarUrl: avatarUrl ?? this.avatarUrl,
+    leadId: leadId ?? this.leadId,
+    lastMessage: lastMessage ?? this.lastMessage,
+    lastMessageIsMine: lastMessageIsMine ?? this.lastMessageIsMine,
+    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+    unreadCount: unreadCount ?? this.unreadCount,
+  );
 }
 
 class ChatMessageEntity extends Equatable {
@@ -26,6 +58,9 @@ class ChatMessageEntity extends Equatable {
   final String messageType;
   final String text;
   final bool isMine;
+  final bool isRead;
+  final ChatMessageReply? replyTo;
+  final List<ChatAttachment> attachments;
   final ChatRecommendation? recommendation;
   final String createdAt;
 
@@ -34,14 +69,52 @@ class ChatMessageEntity extends Equatable {
     required this.messageType,
     required this.text,
     required this.isMine,
+    this.isRead = false,
+    this.replyTo,
+    this.attachments = const [],
     this.recommendation,
     required this.createdAt,
   });
 
   bool get isRecommendation => messageType == 'operator_recommendation';
+  bool get hasMedia => attachments.isNotEmpty
+      || const {'image', 'video', 'audio', 'voice', 'file'}.contains(messageType);
 
   @override
-  List<Object?> get props => [id, messageType, text, isMine, recommendation, createdAt];
+  List<Object?> get props =>
+      [id, messageType, text, isMine, isRead, replyTo, attachments, recommendation, createdAt];
+}
+
+class ChatAttachment extends Equatable {
+  final String url;
+  final String fileType; // 'image', 'video', 'audio', 'file'
+  final String? fileName;
+
+  const ChatAttachment({
+    required this.url,
+    required this.fileType,
+    this.fileName,
+  });
+
+  @override
+  List<Object?> get props => [url, fileType, fileName];
+}
+
+class ChatMessageReply extends Equatable {
+  final int id;
+  final String text;
+  final String messageType;
+  final bool isMine;
+
+  const ChatMessageReply({
+    required this.id,
+    required this.text,
+    required this.messageType,
+    required this.isMine,
+  });
+
+  @override
+  List<Object?> get props => [id, text, messageType, isMine];
 }
 
 class ChatRecommendation extends Equatable {
@@ -84,6 +157,23 @@ class RecommendedProduct extends Equatable {
 
   @override
   List<Object?> get props => [id, title, cost, discount, isActive, image];
+}
+
+class ChatMessagesPage {
+  final List<ChatMessageEntity> messages;
+  final bool hasMore;    // yana eskiroq xabarlar bormi
+  final int? oldestId;  // keyingi ?before= cursor uchun
+  const ChatMessagesPage({
+    required this.messages,
+    required this.hasMore,
+    this.oldestId,
+  });
+}
+
+class ChatProductsPage {
+  final List<ChatProductEntity> products;
+  final bool hasMore;
+  const ChatProductsPage({required this.products, required this.hasMore});
 }
 
 class ChatProductEntity extends Equatable {
