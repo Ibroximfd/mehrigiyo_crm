@@ -68,14 +68,17 @@ class ChatListWsService {
 
   void disconnect() {
     _disposed = true;
-    for (final t in _timers.values) {
-      t?.cancel();
-    }
+    // Copy before clearing — _onDisconnected callbacks modify these maps
+    final timers = List<Timer?>.from(_timers.values);
+    final channels = List<WebSocketChannel>.from(_channels.values);
     _timers.clear();
-    for (final ch in _channels.values) {
-      ch.sink.close();
-    }
     _channels.clear();
     _roomIds.clear();
+    for (final t in timers) {
+      t?.cancel();
+    }
+    for (final ch in channels) {
+      ch.sink.close();
+    }
   }
 }

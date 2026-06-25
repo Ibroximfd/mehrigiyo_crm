@@ -8,17 +8,18 @@ import '../router/route_names.dart';
 class DioInterceptor extends Interceptor {
   final SharedPreferences _prefs;
 
-  // Memory cache — avoids repeated SharedPreferences reads per request
-  String? _cachedToken;
-
   DioInterceptor(this._prefs);
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    _cachedToken ??= _prefs.getString('auth_token');
-    final token = _cachedToken;
+    // Always read the token fresh from storage. Caching it in memory caused a
+    // stale token to be sent after account switches (operator → admin), which
+    // the backend rejected with "You don't have permission".
+    final token = _prefs.getString('auth_token');
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
+    } else {
+      options.headers.remove('Authorization');
     }
     handler.next(options);
   }
@@ -26,16 +27,9 @@ class DioInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      _cachedToken = null;
       await _prefs.remove('auth_token');
       appRouter.go(RouteNames.login);
     }
     handler.next(err);
   }
-
-  // Called by AuthBloc on login to sync the cache immediately
-  void setToken(String token) => _cachedToken = token;
-
-  // Called by AuthBloc on logout to clear cache immediately
-  void clearToken() => _cachedToken = null;
 }

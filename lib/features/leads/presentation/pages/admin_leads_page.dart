@@ -232,41 +232,144 @@ class _FilterRow extends StatefulWidget {
 }
 
 class _FilterRowState extends State<_FilterRow> {
-  int? _selectedOperatorId;
+  OperatorEntity? _selected;
+
+  void _openPicker(BuildContext context) {
+    final sellers = widget.operators.where((o) => !o.isAdmin).toList();
+    if (sellers.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360, maxHeight: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Text(
+                  'Operatorni tanlang',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  children: sellers.map((op) {
+                    final isActive = _selected?.id == op.id;
+                    return ListTile(
+                      leading: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: isActive
+                            ? AppColors.primary
+                            : AppColors.primaryLight,
+                        child: Text(
+                          op.fullName[0].toUpperCase(),
+                          style: TextStyle(
+                            color: isActive
+                                ? Colors.white
+                                : AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        op.fullName,
+                        style: TextStyle(
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isActive
+                              ? AppColors.primary
+                              : const Color(0xFF1E293B),
+                        ),
+                      ),
+                      trailing: isActive
+                          ? const Icon(Icons.check_rounded,
+                              color: AppColors.primary, size: 18)
+                          : null,
+                      onTap: () {
+                        setState(() => _selected = op);
+                        Navigator.of(ctx, rootNavigator: true).pop();
+                        context.read<AdminLeadsBloc>().add(
+                          AdminLeadsLoadRequested(assignedTo: op.id),
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: TextButton(
+                  onPressed: () =>
+                      Navigator.of(ctx, rootNavigator: true).pop(),
+                  child: const Text('Bekor qilish'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _FilterChip(
-            label: 'Barchasi',
-            selected: _selectedOperatorId == null,
-            onTap: () {
-              setState(() => _selectedOperatorId = null);
-              context.read<AdminLeadsBloc>().add(const AdminLeadsLoadRequested());
-            },
-          ),
-          const SizedBox(width: 8),
-          if (widget.operators.isNotEmpty)
-            ...widget.operators.where((o) => !o.isAdmin).map(
-              (op) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _FilterChip(
-                  label: op.fullName.split(' ').first,
-                  selected: _selectedOperatorId == op.id,
-                  onTap: () {
-                    setState(() => _selectedOperatorId = op.id);
-                    context.read<AdminLeadsBloc>().add(
-                      AdminLeadsLoadRequested(assignedTo: op.id),
-                    );
-                  },
-                ),
+    final hasSelected = _selected != null;
+    return Row(
+      children: [
+        _FilterChip(
+          label: 'Barchasi',
+          selected: !hasSelected,
+          onTap: () {
+            setState(() => _selected = null);
+            context.read<AdminLeadsBloc>().add(const AdminLeadsLoadRequested());
+          },
+        ),
+        const SizedBox(width: 8),
+        // Operator dropdown chip
+        GestureDetector(
+          onTap: () => _openPicker(context),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: hasSelected ? AppColors.primary : AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: hasSelected ? AppColors.primary : AppColors.border,
               ),
             ),
-        ],
-      ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  hasSelected ? _selected!.fullName : 'Operator',
+                  style: TextStyle(
+                    color: hasSelected ? Colors.white : const Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 16,
+                  color: hasSelected ? Colors.white : const Color(0xFF94A3B8),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -327,51 +430,77 @@ class _AssignButton extends StatelessWidget {
 
   void _showAssignSheet(BuildContext context) {
     final sellers = operators.where((o) => !o.isAdmin).toList();
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Operatorni tanlang',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$count ta lead biriktiriladi',
-              style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            ...sellers.map(
-              (op) => ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.primaryLight,
-                  child: Text(op.fullName[0].toUpperCase(),
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                ),
-                title: Text(op.fullName),
-                subtitle: Text('${op.commissionPercent}% komissiya'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onAssign(op.id);
-                },
-              ),
-            ),
-            if (sellers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Text('Sotuvchi operatorlar yo\'q', style: TextStyle(color: Color(0xFF94A3B8))),
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Operatorni tanlang',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$count ta lead biriktiriladi',
+                      style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                  ],
                 ),
               ),
-            const SizedBox(height: 8),
-          ],
+              if (sellers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text('Sotuvchi operatorlar yo\'q',
+                        style: TextStyle(color: Color(0xFF94A3B8))),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    children: sellers
+                        .map((op) => ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.primaryLight,
+                                child: Text(op.fullName[0].toUpperCase(),
+                                    style: const TextStyle(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                              title: Text(op.fullName),
+                              subtitle: Text('${op.commissionPercent}% komissiya'),
+                              onTap: () {
+                                Navigator.of(context, rootNavigator: true).pop();
+                                onAssign(op.id);
+                              },
+                            ))
+                        .toList(),
+                  ),
+                ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: TextButton(
+                  onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+                  child: const Text('Bekor qilish'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

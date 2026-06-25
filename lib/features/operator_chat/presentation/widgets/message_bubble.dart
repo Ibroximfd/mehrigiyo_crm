@@ -1,6 +1,7 @@
 import 'dart:ui_web' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:web/web.dart' as web;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -19,11 +20,7 @@ class MessageBubble extends StatelessWidget {
   final ChatMessageEntity message;
   final VoidCallback? onReply;
 
-  const MessageBubble({
-    super.key,
-    required this.message,
-    this.onReply,
-  });
+  const MessageBubble({super.key, required this.message, this.onReply});
 
   @override
   Widget build(BuildContext context) {
@@ -39,10 +36,7 @@ class MessageBubble extends StatelessWidget {
       bubble = _TextBubble(message: message);
     }
 
-    return GestureDetector(
-      onDoubleTap: onReply,
-      child: bubble,
-    );
+    return GestureDetector(onDoubleTap: onReply, child: bubble);
   }
 }
 
@@ -198,7 +192,9 @@ class _MediaBubble extends StatelessWidget {
                 ),
               // If attachments parsed, show them; else show fallback card from message_type
               if (message.attachments.isNotEmpty)
-                ...message.attachments.map((a) => _AttachmentWidget(attachment: a, isMine: isMine))
+                ...message.attachments.map(
+                  (a) => _AttachmentWidget(attachment: a, isMine: isMine),
+                )
               else
                 // No parsed attachment — show type-based card (URL unknown, no action)
                 _MediaCard(
@@ -247,40 +243,17 @@ class _AttachmentWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (attachment.fileType) {
       case 'image':
-        return GestureDetector(
-          onTap: () => _showImageDialog(context),
-          child: ClipRect(
-            child: Image.network(
-              _resolvedUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: 200,
-              loadingBuilder: (_, child, progress) => progress == null
-                  ? child
-                  : Container(
-                      height: 200,
-                      color: Colors.black12,
-                      child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2)),
-                    ),
-              errorBuilder: (_, e, s) => _MediaCard(
-                icon: Icons.broken_image_rounded,
-                label: attachment.fileName ?? 'Rasm',
-                isMine: isMine,
-                onTap: () => _showImageDialog(context),
-              ),
-            ),
-          ),
-        );
+        return _ImageAttachment(url: _resolvedUrl, isMine: isMine);
       case 'audio':
       case 'voice':
         return _MediaCard(
           icon: Icons.mic_rounded,
           label: attachment.fileName ?? 'Ovozli xabar',
           isMine: isMine,
-          onTap: () => _showAudioDialog(context),
+          onTap: _resolvedUrl.isEmpty ? null : () => _showAudioDialog(context),
           iconColor: const Color(0xFF10B981),
           bgColor: const Color(0xFFD1FAE5),
+          isPending: _resolvedUrl.isEmpty,
         );
       case 'video':
         return _MediaCard(
@@ -296,54 +269,14 @@ class _AttachmentWidget extends StatelessWidget {
           icon: Icons.attach_file_rounded,
           label: attachment.fileName ?? 'Fayl',
           isMine: isMine,
-          // For generic files, open in new tab as there's no embed option
-          onTap: () {
-            if (kIsWeb) web.window.open(_resolvedUrl, '_blank');
-          },
+          isPending: _resolvedUrl.isEmpty,
+          onTap: _resolvedUrl.isEmpty
+              ? null
+              : () {
+                  if (kIsWeb) web.window.open(_resolvedUrl, '_blank');
+                },
         );
     }
-  }
-
-  void _showImageDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          children: [
-            InteractiveViewer(
-              child: Image.network(
-                _resolvedUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, e, s) => const Center(
-                  child: Icon(Icons.broken_image_rounded,
-                      color: Colors.white, size: 64),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () => Navigator.of(context, rootNavigator: true).pop(),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
-                  ),
-                  child:
-                      const Icon(Icons.close_rounded, color: Colors.white, size: 20),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showAudioDialog(BuildContext context) {
@@ -373,14 +306,19 @@ class _AttachmentWidget extends StatelessWidget {
                   color: Color(0xFFD1FAE5),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.mic_rounded,
-                    color: Color(0xFF10B981), size: 28),
+                child: const Icon(
+                  Icons.mic_rounded,
+                  color: Color(0xFF10B981),
+                  size: 28,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
                 attachment.fileName ?? 'Ovozli xabar',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 15),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -439,8 +377,11 @@ class _AttachmentWidget extends StatelessWidget {
                     color: Colors.black54,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ),
@@ -458,6 +399,7 @@ class _MediaCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? iconColor;
   final Color? bgColor;
+  final bool isPending;
 
   const _MediaCard({
     required this.icon,
@@ -466,6 +408,7 @@ class _MediaCard extends StatelessWidget {
     this.onTap,
     this.iconColor,
     this.bgColor,
+    this.isPending = false,
   });
 
   @override
@@ -501,7 +444,7 @@ class _MediaCard extends StatelessWidget {
                     maxLines: 1,
                   ),
                   Text(
-                    'Ochish uchun bosing',
+                    isPending ? 'Yuklanmoqda...' : 'Ochish uchun bosing',
                     style: TextStyle(
                       fontSize: 10,
                       color: isMine ? Colors.white54 : const Color(0xFF94A3B8),
@@ -511,8 +454,21 @@ class _MediaCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.open_in_new_rounded,
-                size: 14, color: isMine ? Colors.white38 : const Color(0xFFCBD5E1)),
+            if (isPending)
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: isMine ? Colors.white38 : const Color(0xFFCBD5E1),
+                ),
+              )
+            else
+              Icon(
+                Icons.open_in_new_rounded,
+                size: 14,
+                color: isMine ? Colors.white38 : const Color(0xFFCBD5E1),
+              ),
           ],
         ),
       ),
@@ -540,24 +496,21 @@ class _TimeRow extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          _fmt(createdAt),
-          style: TextStyle(fontSize: 10, color: color),
-        ),
+        Text(_fmt(createdAt), style: TextStyle(fontSize: 10, color: color)),
         if (isMine) ...[
           const SizedBox(width: 4),
           Icon(
             isPending
                 ? Icons.access_time_rounded
                 : isRead
-                    ? Icons.done_all_rounded
-                    : Icons.done_rounded,
+                ? Icons.done_all_rounded
+                : Icons.done_rounded,
             size: 13,
             color: isPending
                 ? Colors.white38
                 : isRead
-                    ? const Color(0xFF34D399)
-                    : Colors.white54,
+                ? const Color(0xFF34D399)
+                : Colors.white54,
           ),
         ],
       ],
@@ -615,38 +568,59 @@ class _RecommendationBubble extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.recommend_rounded, size: 16, color: AppColors.primary),
+                  const Icon(
+                    Icons.recommend_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
-                    rec.type == 'operator' ? 'Operator tavsiyasi' : 'Doktor tavsiyasi',
+                    rec.type == 'operator'
+                        ? 'Operator tavsiyasi'
+                        : 'Doktor tavsiyasi',
                     style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
                     ),
                   ),
                   const Spacer(),
                   if (rec.isExpired)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Text(
                         'Muddati o\'tgan',
-                        style: TextStyle(fontSize: 10, color: Color(0xFFDC3545)),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFFDC3545),
+                        ),
                       ),
                     ),
                 ],
               ),
             ),
             // Product list
-            ...rec.products.asMap().entries.map((e) => Column(
-              children: [
-                if (e.key > 0)
-                  const Divider(height: 1, indent: 14, endIndent: 14, color: Color(0xFFF1F5F9)),
-                _ProductCard(product: e.value),
-              ],
-            )),
+            ...rec.products.asMap().entries.map(
+              (e) => Column(
+                children: [
+                  if (e.key > 0)
+                    const Divider(
+                      height: 1,
+                      indent: 14,
+                      endIndent: 14,
+                      color: Color(0xFFF1F5F9),
+                    ),
+                  _ProductCard(product: e.value),
+                ],
+              ),
+            ),
             // Time
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
@@ -720,7 +694,10 @@ class _ProductCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       // Discount badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(4),
@@ -757,14 +734,18 @@ class _ProductCard extends StatelessWidget {
   }
 
   Widget _imgPlaceholder() => Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Icon(Icons.inventory_2_outlined, size: 28, color: Color(0xFFCBD5E1)),
-      );
+    width: 72,
+    height: 72,
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F5F9),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: const Icon(
+      Icons.inventory_2_outlined,
+      size: 28,
+      color: Color(0xFFCBD5E1),
+    ),
+  );
 
   String _fmt(int v) {
     final s = v.toString();
@@ -788,41 +769,338 @@ String _fmtTime(String iso) {
 
 IconData _iconForType(String t) {
   switch (t) {
-    case 'image': return Icons.image_rounded;
-    case 'video': return Icons.videocam_rounded;
+    case 'image':
+      return Icons.image_rounded;
+    case 'video':
+      return Icons.videocam_rounded;
     case 'audio':
-    case 'voice': return Icons.mic_rounded;
-    default: return Icons.attach_file_rounded;
+    case 'voice':
+      return Icons.mic_rounded;
+    default:
+      return Icons.attach_file_rounded;
   }
 }
 
 String _labelForType(String t) {
   switch (t) {
-    case 'image': return 'Rasm';
-    case 'video': return 'Video';
+    case 'image':
+      return 'Rasm';
+    case 'video':
+      return 'Video';
     case 'audio':
-    case 'voice': return 'Ovozli xabar';
-    default: return 'Fayl';
+    case 'voice':
+      return 'Ovozli xabar';
+    default:
+      return 'Fayl';
   }
 }
 
 Color _colorForType(String t) {
   switch (t) {
-    case 'image': return const Color(0xFF6366F1);
-    case 'video': return const Color(0xFF6366F1);
+    case 'image':
+      return const Color(0xFF6366F1);
+    case 'video':
+      return const Color(0xFF6366F1);
     case 'audio':
-    case 'voice': return const Color(0xFF10B981);
-    default: return AppColors.primary;
+    case 'voice':
+      return const Color(0xFF10B981);
+    default:
+      return AppColors.primary;
   }
 }
 
 Color _bgForType(String t, bool isMine) {
   if (isMine) return Colors.white12;
   switch (t) {
-    case 'image': return const Color(0xFFE0E7FF);
-    case 'video': return const Color(0xFFE0E7FF);
+    case 'image':
+      return const Color(0xFFE0E7FF);
+    case 'video':
+      return const Color(0xFFE0E7FF);
     case 'audio':
-    case 'voice': return const Color(0xFFD1FAE5);
-    default: return AppColors.primaryLight;
+    case 'voice':
+      return const Color(0xFFD1FAE5);
+    default:
+      return AppColors.primaryLight;
+  }
+}
+
+// ─── Image thumbnail — StatelessWidget, Image.network ────────────────────────
+
+class _ImageAttachment extends StatelessWidget {
+  final String url;
+  final bool isMine;
+  const _ImageAttachment({required this.url, required this.isMine});
+
+  void _openViewer(BuildContext context) {
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: Colors.black87,
+      barrierDismissible: true,
+      builder: (_) => _ImageViewerDialog(url: url),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) {
+      return Container(
+        width: 200,
+        height: 160,
+        color: isMine ? Colors.white10 : Colors.black12,
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54),
+        ),
+      );
+    }
+
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: InkWell(
+          onTap: () => _openViewer(context),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 260, maxHeight: 260),
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                cacheWidth: 260,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return SizedBox(
+                    width: 200,
+                    height: 160,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: progress.expectedTotalBytes != null
+                            ? progress.cumulativeBytesLoaded /
+                                progress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                        color: isMine ? Colors.white70 : AppColors.primary,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (_, _, _) => InkWell(
+                  onTap: () => _openViewer(context),
+                  child: Container(
+                    width: 200,
+                    height: 160,
+                    color: isMine
+                        ? Colors.white10
+                        : const Color(0xFFF1F5F9),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.image_rounded,
+                            size: 36,
+                            color: isMine
+                                ? Colors.white38
+                                : const Color(0xFFCBD5E1)),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Rasmni ochish',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isMine
+                                ? Colors.white54
+                                : AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Full-screen viewer — StatefulWidget (FocusNode for ESC) ─────────────────
+
+class _ImageViewerDialog extends StatefulWidget {
+  final String url;
+  const _ImageViewerDialog({required this.url});
+
+  @override
+  State<_ImageViewerDialog> createState() => _ImageViewerDialogState();
+}
+
+class _ImageViewerDialogState extends State<_ImageViewerDialog> {
+  late final FocusNode _focusNode;
+  // true when Image.network fails (CORS) — fallback to HtmlElementView <img>
+  bool _htmlFallback = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _close() => Navigator.of(context, rootNavigator: true).pop();
+
+  void _download() {
+    final name = widget.url.split('/').last.split('?').first;
+    final anchor = web.HTMLAnchorElement()
+      ..href = widget.url
+      ..download = name.isNotEmpty ? name : 'image'
+      ..target = '_blank';
+    web.document.body!.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  Widget _buildImage() {
+    if (_htmlFallback) {
+      // Image.network failed (CORS) — use HTML <img> which loads cross-origin fine
+      final viewId = 'img-viewer-${widget.url.hashCode}';
+      _registerViewFactory(viewId, () => web.HTMLImageElement()
+        ..src = widget.url
+        ..style.width = '100%'
+        ..style.height = '100%'
+        ..style.objectFit = 'contain'
+        ..style.pointerEvents = 'none'); // pass events to Flutter
+      return HtmlElementView(viewType: viewId);
+    }
+
+    return Image.network(
+      widget.url,
+      fit: BoxFit.contain,
+      loadingBuilder: (_, child, progress) {
+        if (progress == null) return child;
+        return const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        );
+      },
+      errorBuilder: (_, _, _) {
+        // Switch to HtmlElementView on next frame
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_htmlFallback) {
+            setState(() => _htmlFallback = true);
+          }
+        });
+        return const Center(
+          child: CircularProgressIndicator(color: Colors.white54),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: _focusNode,
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _close();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: SizedBox.expand(
+          child: Stack(
+            children: [
+              // Image — zoomable via InteractiveViewer
+              InteractiveViewer(
+                boundaryMargin: const EdgeInsets.all(20),
+                minScale: 0.5,
+                maxScale: 5.0,
+                panEnabled: true,
+                scaleEnabled: true,
+                child: Center(child: _buildImage()),
+              ),
+
+              // Top gradient bar (Flutter layer — always clickable)
+              Positioned(
+                top: 0, left: 0, right: 0,
+                child: Container(
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    left: 12, right: 12, bottom: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.6),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _ViewerBtn(
+                        icon: Icons.close_rounded,
+                        tooltip: 'Yopish (ESC)',
+                        onTap: _close,
+                      ),
+                      Row(children: [
+                        _ViewerBtn(
+                          icon: Icons.download_rounded,
+                          tooltip: 'Yuklab olish',
+                          onTap: _download,
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ViewerBtn extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _ViewerBtn(
+      {required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+              color: Colors.black45, shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+      ),
+    );
   }
 }

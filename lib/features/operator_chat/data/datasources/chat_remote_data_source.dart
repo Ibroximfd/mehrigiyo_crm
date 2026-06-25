@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/error/failure.dart';
@@ -9,7 +10,19 @@ abstract class ChatRemoteDataSource {
   Future<ChatRoomModel> createRoom({required String phone, int? leadId});
   Future<List<ChatRoomModel>> getRooms();
   Future<ChatMessagesPage> getMessages(int roomId, {int? beforeId});
-  Future<ChatMessageModel> sendMessage({required int roomId, required String text, int? replyToId});
+  Future<ChatMessageModel> sendMessage({
+    required int roomId,
+    required String text,
+    int? replyToId,
+  });
+  Future<ChatMessageModel> sendMediaMessage({
+    required int roomId,
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String messageType,
+    int? replyToId,
+  });
   Future<ChatMessageModel> sendRecommendation({
     required int roomId,
     required List<int> productIds,
@@ -38,8 +51,10 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       if (e.response?.statusCode == 404) {
         final data = e.response?.data;
         final msg = data is Map
-            ? (data['detail'] ?? data['message'] ?? 'Bu raqam bilan mijoz ilovada ro\'yxatdan o\'tmagan')
-                .toString()
+            ? (data['detail'] ??
+                      data['message'] ??
+                      'Bu raqam bilan mijoz ilovada ro\'yxatdan o\'tmagan')
+                  .toString()
             : 'Bu raqam bilan mijoz ilovada ro\'yxatdan o\'tmagan';
         throw ServerFailure(msg);
       }
@@ -51,8 +66,12 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   Future<List<ChatRoomModel>> getRooms() async {
     try {
       final res = await apiClient.get(ApiConstants.chatRooms);
-      final list = res.data is Map ? (res.data['results'] as List? ?? []) : (res.data as List? ?? []);
-      return list.map((e) => ChatRoomModel.fromJson(e as Map<String, dynamic>)).toList();
+      final list = res.data is Map
+          ? (res.data['results'] as List? ?? [])
+          : (res.data as List? ?? []);
+      return list
+          .map((e) => ChatRoomModel.fromJson(e as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       throw dioFailure(e, 'Chatlarni yuklashda xatolik');
     }
@@ -73,21 +92,62 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           .toList();
       final hasMore = data['has_more'] as bool? ?? false;
       final oldestId = data['oldest_id'] as int?;
-      return ChatMessagesPage(messages: results, hasMore: hasMore, oldestId: oldestId);
+      return ChatMessagesPage(
+        messages: results,
+        hasMore: hasMore,
+        oldestId: oldestId,
+      );
     } on DioException catch (e) {
       throw dioFailure(e, 'Xabarlarni yuklashda xatolik');
     }
   }
 
   @override
-  Future<ChatMessageModel> sendMessage({required int roomId, required String text, int? replyToId}) async {
+  Future<ChatMessageModel> sendMessage({
+    required int roomId,
+    required String text,
+    int? replyToId,
+  }) async {
     try {
       final body = <String, dynamic>{'room': roomId, 'text': text};
       if (replyToId != null) body['reply_to'] = replyToId;
-      final res = await apiClient.post(ApiConstants.chatSendMessage, data: body);
+      final res = await apiClient.post(
+        ApiConstants.chatSendMessage,
+        data: body,
+      );
       return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw dioFailure(e, 'Xabar yuborishda xatolik');
+    }
+  }
+
+  @override
+  Future<ChatMessageModel> sendMediaMessage({
+    required int roomId,
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String messageType,
+    int? replyToId,
+  }) async {
+    try {
+      final fields = <String, dynamic>{
+        'room': roomId,
+        'message_type': messageType,
+        'attachments': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: DioMediaType.parse(mimeType),
+        ),
+      };
+      if (replyToId != null) fields['reply_to'] = replyToId;
+      final res = await apiClient.post(
+        ApiConstants.chatSendMessage,
+        data: FormData.fromMap(fields),
+      );
+      return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw dioFailure(e, 'Fayl yuborishda xatolik');
     }
   }
 
@@ -100,7 +160,10 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     try {
       final body = <String, dynamic>{'product_ids': productIds};
       if (leadId != null) body['lead_id'] = leadId;
-      final res = await apiClient.post(ApiConstants.chatRecommend(roomId), data: body);
+      final res = await apiClient.post(
+        ApiConstants.chatRecommend(roomId),
+        data: body,
+      );
       return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw dioFailure(e, 'Tavsiya yuborishda xatolik');
@@ -112,7 +175,10 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     try {
       final params = <String, dynamic>{'page': page};
       if (query.isNotEmpty) params['search'] = query;
-      final res = await apiClient.get(ApiConstants.shopMedicines, queryParameters: params);
+      final res = await apiClient.get(
+        ApiConstants.shopMedicines,
+        queryParameters: params,
+      );
       final data = res.data as Map<String, dynamic>;
       final list = (data['results'] as List? ?? [])
           .map((e) => ChatProductModel.fromJson(e as Map<String, dynamic>))

@@ -172,21 +172,23 @@ class _LeadCardState extends State<LeadCard> {
                             ),
                           ],
                           if (widget.lead.assignedTo != null) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
                             Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
                                   Icons.person_rounded,
-                                  size: 13,
-                                  color: Color(0xFF94A3B8),
+                                  size: 14,
+                                  color: Color(0xFFD97706),
                                 ),
                                 const SizedBox(width: 4),
-                                Expanded(
+                                Flexible(
                                   child: Text(
                                     widget.lead.assignedTo!.fullName,
                                     style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF94A3B8),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFD97706),
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -13,6 +14,7 @@ part 'chat_room_state.dart';
 class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   final GetChatMessagesUseCase getMessages;
   final SendChatMessageUseCase sendMessage;
+  final SendMediaMessageUseCase sendMediaMessage;
   final SendRecommendationUseCase sendRecommendation;
   final SearchProductsUseCase searchProducts;
   final ChatWsService wsService;
@@ -24,6 +26,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
   ChatRoomBloc({
     required this.getMessages,
     required this.sendMessage,
+    required this.sendMediaMessage,
     required this.sendRecommendation,
     required this.searchProducts,
     required this.wsService,
@@ -32,6 +35,7 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
     on<ChatRoomLoadRequested>(_onLoad);
     on<ChatRoomLoadMoreRequested>(_onLoadMore);
     on<ChatRoomMessageSent>(_onSendMessage);
+    on<ChatRoomMediaSent>(_onSendMedia);
     on<ChatRoomRecommendationSent>(_onSendRecommendation);
     on<ChatRoomProductsSearched>(_onSearchProducts);
     on<ChatRoomProductsLoadMore>(_onLoadMoreProducts);
@@ -140,6 +144,66 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
         _suppressedWsIds.add(msg.id);
         // Remove BOTH the optimistic AND any WS-echo duplicate, then add the
         // authoritative API response once.
+        final latest = state is ChatRoomLoaded ? state as ChatRoomLoaded : cur;
+        final deduped = latest.messages
+            .where((m) => m.id != optimistic.id && m.id != msg.id)
+            .toList()
+          ..add(msg);
+        emit(latest.copyWith(messages: deduped, isSending: false));
+      },
+    );
+  }
+
+  Future<void> _onSendMedia(
+    ChatRoomMediaSent event,
+    Emitter<ChatRoomState> emit,
+  ) async {
+    final cur = state;
+    if (cur is! ChatRoomLoaded) return;
+
+    final replyTo = cur.replyToMessage;
+    final optimistic = ChatMessageEntity(
+      id: -DateTime.now().millisecondsSinceEpoch,
+      messageType: event.messageType,
+      text: '',
+      isMine: true,
+      attachments: [
+        ChatAttachment(url: '', fileType: event.messageType, fileName: event.fileName),
+      ],
+      replyTo: replyTo != null
+          ? ChatMessageReply(
+              id: replyTo.id,
+              text: replyTo.text,
+              messageType: replyTo.messageType,
+              isMine: replyTo.isMine,
+            )
+          : null,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    emit(cur.copyWith(
+      messages: [...cur.messages, optimistic],
+      isSending: true,
+      replyToMessage: null,
+    ));
+
+    final result = await sendMediaMessage(
+      roomId: cur.roomId,
+      bytes: event.bytes,
+      fileName: event.fileName,
+      mimeType: event.mimeType,
+      messageType: event.messageType,
+      replyToId: replyTo?.id,
+    );
+
+    result.fold(
+      (f) {
+        final latest = state is ChatRoomLoaded ? state as ChatRoomLoaded : cur;
+        final filtered = latest.messages.where((m) => m.id != optimistic.id).toList();
+        emit(latest.copyWith(messages: filtered, isSending: false, sendError: f.message));
+      },
+      (msg) {
+        _suppressedWsIds.add(msg.id);
         final latest = state is ChatRoomLoaded ? state as ChatRoomLoaded : cur;
         final deduped = latest.messages
             .where((m) => m.id != optimistic.id && m.id != msg.id)

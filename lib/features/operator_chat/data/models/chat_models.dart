@@ -76,7 +76,7 @@ class ChatMessageModel extends ChatMessageEntity {
     final attachmentsRaw = json['attachments'] as List? ?? [];
     var attachments = attachmentsRaw
         .map((a) => a is Map<String, dynamic>
-            ? _parseAttachment(a)
+            ? _parseAttachment(a, msgType)
             : a is String
                 ? _parseAttachmentFromUrl(a, msgType)
                 : null)
@@ -123,15 +123,22 @@ class ChatMessageModel extends ChatMessageEntity {
     );
   }
 
-  static ChatAttachment? _parseAttachment(Map<String, dynamic> json) {
+  static ChatAttachment? _parseAttachment(Map<String, dynamic> json, [String? msgType]) {
     final url = json['file']?.toString()
         ?? json['url']?.toString()
         ?? json['file_url']?.toString()
         ?? '';
     if (url.isEmpty) return null;
-    // Priority: explicit file_type field, then extension detection
+    // Priority: explicit file_type > message_type > url extension
     final explicit = json['file_type']?.toString() ?? '';
-    final fileType = explicit.isNotEmpty ? _normalizeType(explicit) : _typeFromUrl(url);
+    String fileType;
+    if (explicit.isNotEmpty) {
+      fileType = _normalizeType(explicit);
+    } else if (msgType != null) {
+      fileType = _typeFromMsgType(msgType) ?? _typeFromUrl(url);
+    } else {
+      fileType = _typeFromUrl(url);
+    }
     return ChatAttachment(
       url: url,
       fileType: fileType,

@@ -34,7 +34,7 @@ import '../../features/operator_chat/data/repositories/chat_repository_impl.dart
 import '../../features/operator_chat/data/services/chat_ws_service.dart';
 import '../../features/operator_chat/data/services/chat_notification_ws_service.dart';
 import '../../features/operator_chat/domain/repositories/chat_repository.dart';
-import '../../features/operator_chat/domain/usecases/chat_usecases.dart';
+import '../../features/operator_chat/domain/usecases/chat_usecases.dart' show CreateChatRoomUseCase, GetChatRoomsUseCase, GetChatMessagesUseCase, SendChatMessageUseCase, SendMediaMessageUseCase, SendRecommendationUseCase, SearchProductsUseCase, MarkChatAsReadUseCase;
 import '../../features/operator_chat/presentation/bloc/chat_list_bloc.dart';
 import '../../features/operator_chat/presentation/bloc/chat_room_bloc.dart';
 import '../../features/operator_order/data/datasources/operator_order_data_source.dart';
@@ -121,6 +121,7 @@ void _registerOperatorFeatures() {
   getIt.registerLazySingleton(() => SendRecommendationUseCase(getIt<ChatRepository>()));
   getIt.registerLazySingleton(() => SearchProductsUseCase(getIt<ChatRepository>()));
   getIt.registerLazySingleton(() => MarkChatAsReadUseCase(getIt<ChatRepository>()));
+  getIt.registerLazySingleton(() => SendMediaMessageUseCase(getIt<ChatRepository>()));
 
   // ── Operator Orders (seller) ───────────────────────────────────────────────
   getIt.registerLazySingleton<OperatorOrderDataSource>(
@@ -147,6 +148,7 @@ void _registerOperatorFeatures() {
   getIt.registerFactory(() => ChatRoomBloc(
     getMessages: getIt<GetChatMessagesUseCase>(),
     sendMessage: getIt<SendChatMessageUseCase>(),
+    sendMediaMessage: getIt<SendMediaMessageUseCase>(),
     sendRecommendation: getIt<SendRecommendationUseCase>(),
     searchProducts: getIt<SearchProductsUseCase>(),
     wsService: ChatWsService(),

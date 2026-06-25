@@ -24,6 +24,9 @@ class AuthRepositoryImpl implements AuthRepository {
         username: username,
         password: password,
       );
+      // Clear any previous account's data first so optional fields the new
+      // user lacks can't leak in from the prior session (no state merge).
+      await _clearUserPrefs();
       await _saveUserToPrefs(user);
       return Right(user);
     } on Failure catch (e) {

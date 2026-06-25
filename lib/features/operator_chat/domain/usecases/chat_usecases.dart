@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
 import '../entities/chat_entities.dart';
@@ -32,6 +33,27 @@ class SendChatMessageUseCase {
     int? replyToId,
   }) =>
       repo.sendMessage(roomId: roomId, text: text, replyToId: replyToId);
+}
+
+class SendMediaMessageUseCase {
+  final ChatRepository repo;
+  SendMediaMessageUseCase(this.repo);
+  Future<Either<Failure, ChatMessageEntity>> call({
+    required int roomId,
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String messageType,
+    int? replyToId,
+  }) =>
+      repo.sendMediaMessage(
+        roomId: roomId,
+        bytes: bytes,
+        fileName: fileName,
+        mimeType: mimeType,
+        messageType: messageType,
+        replyToId: replyToId,
+      );
 }
 
 class SendRecommendationUseCase {

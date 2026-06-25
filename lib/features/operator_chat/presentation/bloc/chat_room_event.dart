@@ -58,6 +58,21 @@ class ChatRoomLoadMoreRequested extends ChatRoomEvent {
   const ChatRoomLoadMoreRequested();
 }
 
+class ChatRoomMediaSent extends ChatRoomEvent {
+  final Uint8List bytes;
+  final String fileName;
+  final String mimeType;
+  final String messageType; // 'image', 'video', 'voice', 'file'
+  const ChatRoomMediaSent({
+    required this.bytes,
+    required this.fileName,
+    required this.mimeType,
+    required this.messageType,
+  });
+  @override
+  List<Object?> get props => [fileName, mimeType, messageType];
+}
+
 // Internal — only dispatched from WS stream handler
 class _ChatRoomWsMessageReceived extends ChatRoomEvent {
   final Map<String, dynamic> data;

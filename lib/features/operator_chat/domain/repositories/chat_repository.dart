@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
 import '../entities/chat_entities.dart';
@@ -15,6 +16,15 @@ abstract class ChatRepository {
   Future<Either<Failure, ChatMessageEntity>> sendMessage({
     required int roomId,
     required String text,
+    int? replyToId,
+  });
+
+  Future<Either<Failure, ChatMessageEntity>> sendMediaMessage({
+    required int roomId,
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String messageType,
     int? replyToId,
   });
 

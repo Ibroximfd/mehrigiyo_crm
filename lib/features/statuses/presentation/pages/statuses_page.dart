@@ -200,6 +200,52 @@ class _StatusTile extends StatelessWidget {
     return Color(int.parse('FF$h', radix: 16));
   }
 
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Statusni o\'chirish',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        content: RichText(
+          text: TextSpan(
+            style: const TextStyle(fontSize: 14, color: Color(0xFF475569), height: 1.5),
+            children: [
+              const TextSpan(text: '"'),
+              TextSpan(
+                text: status.name as String,
+                style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+              ),
+              const TextSpan(
+                text: '" statusini o\'chirmoqchimisiz?\nBu amalni qaytarib bo\'lmaydi.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(),
+            child: const Text('Bekor qilish'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx, rootNavigator: true).pop();
+              onDelete();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('O\'chirish'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -232,7 +278,7 @@ class _StatusTile extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
               )
             : IconButton(
-                onPressed: onDelete,
+                onPressed: () => _confirmDelete(context),
                 icon: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
                 tooltip: 'O\'chirish',
               ),

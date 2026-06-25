@@ -14,7 +14,6 @@ class ApiClient {
     _dio.options.connectTimeout = const Duration(seconds: 10);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
     _dio.options.headers = {
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
     _dio.interceptors.add(interceptor);

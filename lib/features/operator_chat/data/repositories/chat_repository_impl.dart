@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dartz/dartz.dart';
 import '../../../../core/error/failure.dart';
 import '../../domain/entities/chat_entities.dart';
@@ -57,6 +58,31 @@ class ChatRepositoryImpl implements ChatRepository {
       return Left(e);
     } catch (_) {
       return const Left(ServerFailure('Xabar yuborishda xatolik'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, ChatMessageEntity>> sendMediaMessage({
+    required int roomId,
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    required String messageType,
+    int? replyToId,
+  }) async {
+    try {
+      return Right(await dataSource.sendMediaMessage(
+        roomId: roomId,
+        bytes: bytes,
+        fileName: fileName,
+        mimeType: mimeType,
+        messageType: messageType,
+        replyToId: replyToId,
+      ));
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (_) {
+      return const Left(ServerFailure('Fayl yuborishda xatolik'));
     }
   }
 
