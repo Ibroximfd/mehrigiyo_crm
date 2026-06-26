@@ -4,7 +4,8 @@ import '../../domain/entities/operator_entity.dart';
 
 class OperatorCard extends StatelessWidget {
   final OperatorEntity operator;
-  const OperatorCard({super.key, required this.operator});
+  final VoidCallback? onEdit;
+  const OperatorCard({super.key, required this.operator, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +23,7 @@ class OperatorCard extends StatelessWidget {
         ],
       ),
       child: ListTile(
+        onTap: onEdit,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 22,
@@ -57,23 +59,37 @@ class OperatorCard extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _Badge(
-              label: operator.isAdmin ? 'Admin' : 'Sotuvchi',
-              color: operator.isAdmin ? AppColors.gold : AppColors.accent,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _Badge(
+                  label: operator.isAdmin ? 'Admin' : 'Sotuvchi',
+                  color: operator.isAdmin ? AppColors.gold : AppColors.accent,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${operator.commissionPercent}%',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${operator.commissionPercent}%',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
+            if (onEdit != null) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded, size: 18, color: Color(0xFF94A3B8)),
+                tooltip: 'Tahrirlash',
+                visualDensity: VisualDensity.compact,
               ),
-            ),
+            ],
           ],
         ),
       ),

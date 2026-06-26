@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/entities/operator_entity.dart';
 import '../bloc/operators_bloc.dart';
 import '../widgets/operator_card.dart';
 import '../widgets/create_operator_dialog.dart';
+import '../widgets/edit_operator_dialog.dart';
 
 class OperatorsPage extends StatelessWidget {
   const OperatorsPage({super.key});
@@ -95,7 +97,11 @@ class OperatorsPage extends StatelessWidget {
                                   )
                                 : const SizedBox(height: 12);
                           }
-                          return OperatorCard(operator: state.operators[i]);
+                          final op = state.operators[i];
+                          return OperatorCard(
+                            operator: op,
+                            onEdit: () => _showEditDialog(context, op),
+                          );
                         },
                         childCount: state.operators.length + 1,
                       ),
@@ -117,6 +123,16 @@ class OperatorsPage extends StatelessWidget {
       builder: (_) => BlocProvider.value(
         value: context.read<OperatorsBloc>(),
         child: const CreateOperatorDialog(),
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, OperatorEntity operator) {
+    showDialog(
+      context: context,
+      builder: (_) => BlocProvider.value(
+        value: context.read<OperatorsBloc>(),
+        child: EditOperatorDialog(operator: operator),
       ),
     );
   }

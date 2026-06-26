@@ -30,3 +30,22 @@ class OperatorCreateRequested extends OperatorsEvent {
   @override
   List<Object?> get props => [fullName, username, password, commissionPercent];
 }
+
+class OperatorUpdateRequested extends OperatorsEvent {
+  final int id;
+  final String? fullName;
+  final String? username;
+  final String? password;
+  final String? commissionPercent;
+
+  const OperatorUpdateRequested({
+    required this.id,
+    this.fullName,
+    this.username,
+    this.password,
+    this.commissionPercent,
+  });
+
+  @override
+  List<Object?> get props => [id, fullName, username, password, commissionPercent];
+}

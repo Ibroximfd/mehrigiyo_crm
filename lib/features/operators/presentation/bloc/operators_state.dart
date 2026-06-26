@@ -58,3 +58,19 @@ class OperatorCreateError extends OperatorsState {
   @override
   List<Object?> get props => [message];
 }
+
+class OperatorUpdating extends OperatorsState {}
+
+class OperatorUpdated extends OperatorsState {
+  final OperatorEntity operator;
+  const OperatorUpdated(this.operator);
+  @override
+  List<Object?> get props => [operator];
+}
+
+class OperatorUpdateError extends OperatorsState {
+  final String message;
+  const OperatorUpdateError(this.message);
+  @override
+  List<Object?> get props => [message];
+}

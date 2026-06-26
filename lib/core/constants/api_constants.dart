@@ -24,6 +24,7 @@ class ApiConstants {
   // Operator management (admin only)
   static const String adminOperatorsList = '/operator/admin/operators/';
   static const String adminOperatorsCreate = '/operator/admin/operators/create/';
+  static String adminOperatorDetail(int id) => '/operator/admin/operators/$id/';
 
   // Statuses
   static const String statuses = '/operator/statuses/';

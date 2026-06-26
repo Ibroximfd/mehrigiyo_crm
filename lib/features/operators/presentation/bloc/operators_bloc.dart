@@ -9,12 +9,17 @@ part 'operators_state.dart';
 class OperatorsBloc extends Bloc<OperatorsEvent, OperatorsState> {
   final GetOperatorsUseCase getOperators;
   final CreateOperatorUseCase createOperator;
+  final UpdateOperatorUseCase updateOperator;
 
-  OperatorsBloc({required this.getOperators, required this.createOperator})
-      : super(OperatorsInitial()) {
+  OperatorsBloc({
+    required this.getOperators,
+    required this.createOperator,
+    required this.updateOperator,
+  }) : super(OperatorsInitial()) {
     on<OperatorsLoadRequested>(_onLoad);
     on<OperatorsLoadMore>(_onLoadMore);
     on<OperatorCreateRequested>(_onCreate);
+    on<OperatorUpdateRequested>(_onUpdate);
   }
 
   Future<void> _onLoad(
@@ -66,6 +71,37 @@ class OperatorsBloc extends Bloc<OperatorsEvent, OperatorsState> {
         // Restore list and prepend new operator
         if (prev is OperatorsLoaded) {
           emit(prev.copyWith(operators: [op, ...prev.operators]));
+        } else {
+          add(const OperatorsLoadRequested());
+        }
+      },
+    );
+  }
+
+  Future<void> _onUpdate(
+    OperatorUpdateRequested event,
+    Emitter<OperatorsState> emit,
+  ) async {
+    final prev = state;
+    emit(OperatorUpdating());
+    final result = await updateOperator(
+      id: event.id,
+      fullName: event.fullName,
+      username: event.username,
+      password: event.password,
+      commissionPercent: event.commissionPercent,
+    );
+    result.fold(
+      (failure) => emit(OperatorUpdateError(failure.message)),
+      (op) {
+        emit(OperatorUpdated(op));
+        // Replace the edited operator in the list, in place.
+        if (prev is OperatorsLoaded) {
+          emit(prev.copyWith(
+            operators: prev.operators
+                .map((o) => o.id == op.id ? op : o)
+                .toList(),
+          ));
         } else {
           add(const OperatorsLoadRequested());
         }

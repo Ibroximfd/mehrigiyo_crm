@@ -10,4 +10,11 @@ abstract class OperatorRepository {
     required String password,
     double commissionPercent = 10,
   });
+  Future<Either<Failure, OperatorEntity>> updateOperator({
+    required int id,
+    String? fullName,
+    String? username,
+    String? password,
+    String? commissionPercent,
+  });
 }

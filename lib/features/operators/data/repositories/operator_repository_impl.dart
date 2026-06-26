@@ -41,4 +41,28 @@ class OperatorRepositoryImpl implements OperatorRepository {
       return const Left(ServerFailure('Operator yaratishda xatolik'));
     }
   }
+
+  @override
+  Future<Either<Failure, OperatorEntity>> updateOperator({
+    required int id,
+    String? fullName,
+    String? username,
+    String? password,
+    String? commissionPercent,
+  }) async {
+    try {
+      final result = await remoteDataSource.updateOperator(
+        id: id,
+        fullName: fullName,
+        username: username,
+        password: password,
+        commissionPercent: commissionPercent,
+      );
+      return Right(result);
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return const Left(ServerFailure('Operatorni tahrirlashda xatolik'));
+    }
+  }
 }

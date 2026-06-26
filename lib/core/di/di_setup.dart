@@ -89,6 +89,7 @@ void _registerOperatorFeatures() {
   // ── Operator use cases ─────────────────────────────────────────────────────
   getIt.registerLazySingleton(() => GetOperatorsUseCase(getIt<OperatorRepository>()));
   getIt.registerLazySingleton(() => CreateOperatorUseCase(getIt<OperatorRepository>()));
+  getIt.registerLazySingleton(() => UpdateOperatorUseCase(getIt<OperatorRepository>()));
 
   getIt.registerLazySingleton(() => GetStatusesUseCase(getIt<StatusRepository>()));
   getIt.registerLazySingleton(() => CreateStatusUseCase(getIt<StatusRepository>()));
@@ -159,6 +160,7 @@ void _registerOperatorFeatures() {
   getIt.registerFactory(() => OperatorsBloc(
     getOperators: getIt<GetOperatorsUseCase>(),
     createOperator: getIt<CreateOperatorUseCase>(),
+    updateOperator: getIt<UpdateOperatorUseCase>(),
   ));
 
   getIt.registerFactory(() => StatusesBloc(

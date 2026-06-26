@@ -28,3 +28,25 @@ class CreateOperatorUseCase {
         commissionPercent: commissionPercent,
       );
 }
+
+class UpdateOperatorUseCase {
+  final OperatorRepository repository;
+  UpdateOperatorUseCase(this.repository);
+
+  /// Only non-null fields are sent (PATCH). Pass [password] to reset it without
+  /// an SMS code — admin-initiated, trusted.
+  Future<Either<Failure, OperatorEntity>> call({
+    required int id,
+    String? fullName,
+    String? username,
+    String? password,
+    String? commissionPercent,
+  }) =>
+      repository.updateOperator(
+        id: id,
+        fullName: fullName,
+        username: username,
+        password: password,
+        commissionPercent: commissionPercent,
+      );
+}
