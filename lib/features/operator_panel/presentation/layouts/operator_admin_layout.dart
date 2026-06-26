@@ -13,20 +13,20 @@ class OperatorAdminLayout extends StatelessWidget {
   const OperatorAdminLayout({super.key, required this.child});
 
   static const _routes = [
-    RouteNames.adminOperators,
     RouteNames.adminLeads,
     RouteNames.adminStatuses,
     RouteNames.adminConsultations,
     RouteNames.adminStatistics,
+    RouteNames.adminOperators,
   ];
 
   int _selectedIndex(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
-    if (path.startsWith(RouteNames.adminLeads)) return 1;
-    if (path.startsWith(RouteNames.adminStatuses)) return 2;
-    if (path.startsWith(RouteNames.adminConsultations)) return 3;
-    if (path.startsWith(RouteNames.adminStatistics)) return 4;
-    return 0;
+    if (path.startsWith(RouteNames.adminStatuses)) return 1;
+    if (path.startsWith(RouteNames.adminConsultations)) return 2;
+    if (path.startsWith(RouteNames.adminStatistics)) return 3;
+    if (path.startsWith(RouteNames.adminOperators)) return 4;
+    return 0; // Leadlar (default landing)
   }
 
   void _navigate(int index, BuildContext context) {
@@ -60,11 +60,6 @@ class OperatorAdminLayout extends StatelessWidget {
               },
               items: [
                 const OpNavItem(
-                  icon: Icons.people_outline_rounded,
-                  selectedIcon: Icons.people_rounded,
-                  label: 'Operatorlar',
-                ),
-                const OpNavItem(
                   icon: Icons.assignment_outlined,
                   selectedIcon: Icons.assignment_rounded,
                   label: 'Leadlar',
@@ -84,6 +79,11 @@ class OperatorAdminLayout extends StatelessWidget {
                   icon: Icons.bar_chart_outlined,
                   selectedIcon: Icons.bar_chart_rounded,
                   label: 'Statistika',
+                ),
+                const OpNavItem(
+                  icon: Icons.people_outline_rounded,
+                  selectedIcon: Icons.people_rounded,
+                  label: 'Operatorlar',
                 ),
               ],
             ),
@@ -154,11 +154,6 @@ class _MobileAdminLayout extends StatelessWidget {
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: [
             const NavigationDestination(
-              icon: Icon(Icons.people_outline_rounded),
-              selectedIcon: Icon(Icons.people_rounded),
-              label: 'Operatorlar',
-            ),
-            const NavigationDestination(
               icon: Icon(Icons.assignment_outlined),
               selectedIcon: Icon(Icons.assignment_rounded),
               label: 'Leadlar',
@@ -182,6 +177,11 @@ class _MobileAdminLayout extends StatelessWidget {
               icon: Icon(Icons.bar_chart_outlined),
               selectedIcon: Icon(Icons.bar_chart_rounded),
               label: 'Statistika',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.people_outline_rounded),
+              selectedIcon: Icon(Icons.people_rounded),
+              label: 'Operatorlar',
             ),
           ],
         ),

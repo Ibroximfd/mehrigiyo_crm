@@ -6,6 +6,7 @@ import 'package:web/web.dart' as web;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/chat_entities.dart';
+import 'voice_message_widget.dart';
 
 // Tracks already-registered HtmlElementView factories to avoid duplicate registration
 final _registeredViewIds = <String>{};
@@ -193,7 +194,11 @@ class _MediaBubble extends StatelessWidget {
               // If attachments parsed, show them; else show fallback card from message_type
               if (message.attachments.isNotEmpty)
                 ...message.attachments.map(
-                  (a) => _AttachmentWidget(attachment: a, isMine: isMine),
+                  (a) => _AttachmentWidget(
+                    attachment: a,
+                    isMine: isMine,
+                    messageId: message.id,
+                  ),
                 )
               else
                 // No parsed attachment — show type-based card (URL unknown, no action)
@@ -235,7 +240,12 @@ class _MediaBubble extends StatelessWidget {
 class _AttachmentWidget extends StatelessWidget {
   final ChatAttachment attachment;
   final bool isMine;
-  const _AttachmentWidget({required this.attachment, required this.isMine});
+  final int messageId;
+  const _AttachmentWidget({
+    required this.attachment,
+    required this.isMine,
+    required this.messageId,
+  });
 
   String get _resolvedUrl => ApiConstants.resolveMediaUrl(attachment.url);
 
@@ -246,14 +256,12 @@ class _AttachmentWidget extends StatelessWidget {
         return _ImageAttachment(url: _resolvedUrl, isMine: isMine);
       case 'audio':
       case 'voice':
-        return _MediaCard(
-          icon: Icons.mic_rounded,
-          label: attachment.fileName ?? 'Ovozli xabar',
+        // Inline Telegram-style player — no dialog. Driven by AudioBloc.
+        return VoiceMessageWidget(
+          messageId: messageId,
+          url: attachment.url,
           isMine: isMine,
-          onTap: _resolvedUrl.isEmpty ? null : () => _showAudioDialog(context),
-          iconColor: const Color(0xFF10B981),
-          bgColor: const Color(0xFFD1FAE5),
-          isPending: _resolvedUrl.isEmpty,
+          fileName: attachment.fileName,
         );
       case 'video':
         return _MediaCard(
@@ -277,63 +285,6 @@ class _AttachmentWidget extends StatelessWidget {
                 },
         );
     }
-  }
-
-  void _showAudioDialog(BuildContext context) {
-    final viewId = 'audio-${attachment.url.hashCode}';
-    _registerViewFactory(viewId, () {
-      return web.HTMLAudioElement()
-        ..src = _resolvedUrl
-        ..controls = true
-        ..style.width = '100%'
-        ..style.outline = 'none';
-    });
-
-    showDialog(
-      context: context,
-      useRootNavigator: true,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFD1FAE5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.mic_rounded,
-                  color: Color(0xFF10B981),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                attachment.fileName ?? 'Ovozli xabar',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: 320,
-                height: 48,
-                child: HtmlElementView(viewType: viewId),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   void _showVideoDialog(BuildContext context) {

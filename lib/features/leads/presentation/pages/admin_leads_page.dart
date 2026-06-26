@@ -43,10 +43,18 @@ class AdminLeadsPage extends StatelessWidget {
                   : <dynamic>[];
           final selected = state is AdminLeadsLoaded ? state.selectedIds : <int>{};
 
+          // Preserve the active filter on pull-to-refresh.
+          final loaded = state is AdminLeadsLoaded ? state : null;
+          final refreshEvent = AdminLeadsLoadRequested(
+            statusId: loaded?.filterStatusId,
+            assignedTo: loaded?.filterOperatorId,
+            unassigned: loaded?.filterUnassigned ?? true,
+          );
+
           return RefreshIndicator(
             color: AppColors.primary,
             onRefresh: () async =>
-                ctx.read<AdminLeadsBloc>().add(const AdminLeadsLoadRequested()),
+                ctx.read<AdminLeadsBloc>().add(refreshEvent),
             child: CustomScrollView(
               slivers: [
                 SliverToBoxAdapter(
@@ -62,7 +70,7 @@ class AdminLeadsPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Barcha Leadlar',
+                                    'Leadlar',
                                     style: TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.w800,
@@ -71,7 +79,7 @@ class AdminLeadsPage extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    'Filialingizdagi barcha mijozlar',
+                                    'Yangi kelgan mijozlarni operatorlarga biriktiring',
                                     style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                                   ),
                                 ],
@@ -133,7 +141,11 @@ class AdminLeadsPage extends StatelessWidget {
                               ],
                             ),
                           ),
-                        _FilterRow(operators: operators),
+                        _FilterRow(
+                          operators: operators,
+                          activeOperatorId: loaded?.filterOperatorId,
+                          unassigned: loaded?.filterUnassigned ?? true,
+                        ),
                       ],
                     ),
                   ),
@@ -154,7 +166,7 @@ class AdminLeadsPage extends StatelessWidget {
                           const SizedBox(height: 16),
                           OutlinedButton(
                             onPressed: () => ctx.read<AdminLeadsBloc>().add(
-                              const AdminLeadsLoadRequested(),
+                              refreshEvent,
                             ),
                             child: const Text('Qayta yuklash'),
                           ),
@@ -223,19 +235,18 @@ class AdminLeadsPage extends StatelessWidget {
   }
 }
 
-class _FilterRow extends StatefulWidget {
+class _FilterRow extends StatelessWidget {
   final List<OperatorEntity> operators;
-  const _FilterRow({required this.operators});
-
-  @override
-  State<_FilterRow> createState() => _FilterRowState();
-}
-
-class _FilterRowState extends State<_FilterRow> {
-  OperatorEntity? _selected;
+  final int? activeOperatorId;
+  final bool unassigned;
+  const _FilterRow({
+    required this.operators,
+    required this.activeOperatorId,
+    required this.unassigned,
+  });
 
   void _openPicker(BuildContext context) {
-    final sellers = widget.operators.where((o) => !o.isAdmin).toList();
+    final sellers = operators.where((o) => !o.isAdmin).toList();
     if (sellers.isEmpty) return;
     showDialog(
       context: context,
@@ -261,7 +272,7 @@ class _FilterRowState extends State<_FilterRow> {
                   shrinkWrap: true,
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   children: sellers.map((op) {
-                    final isActive = _selected?.id == op.id;
+                    final isActive = activeOperatorId == op.id;
                     return ListTile(
                       leading: CircleAvatar(
                         radius: 18,
@@ -295,7 +306,6 @@ class _FilterRowState extends State<_FilterRow> {
                               color: AppColors.primary, size: 18)
                           : null,
                       onTap: () {
-                        setState(() => _selected = op);
                         Navigator.of(ctx, rootNavigator: true).pop();
                         context.read<AdminLeadsBloc>().add(
                           AdminLeadsLoadRequested(assignedTo: op.id),
@@ -323,38 +333,59 @@ class _FilterRowState extends State<_FilterRow> {
 
   @override
   Widget build(BuildContext context) {
-    final hasSelected = _selected != null;
+    final operatorSelected = activeOperatorId != null;
+    OperatorEntity? activeOp;
+    if (operatorSelected) {
+      for (final o in operators) {
+        if (o.id == activeOperatorId) {
+          activeOp = o;
+          break;
+        }
+      }
+    }
+
     return Row(
       children: [
+        // Default: only unassigned (newly arrived) leads.
         _FilterChip(
-          label: 'Barchasi',
-          selected: !hasSelected,
-          onTap: () {
-            setState(() => _selected = null);
-            context.read<AdminLeadsBloc>().add(const AdminLeadsLoadRequested());
-          },
+          label: 'Yangi kelganlar',
+          selected: unassigned,
+          onTap: () => context
+              .read<AdminLeadsBloc>()
+              .add(const AdminLeadsLoadRequested(unassigned: true)),
         ),
         const SizedBox(width: 8),
-        // Operator dropdown chip
+        // No filter → every lead.
+        _FilterChip(
+          label: 'Hammasi',
+          selected: !unassigned && !operatorSelected,
+          onTap: () => context
+              .read<AdminLeadsBloc>()
+              .add(const AdminLeadsLoadRequested()),
+        ),
+        const SizedBox(width: 8),
+        // Filter by a specific operator.
         GestureDetector(
           onTap: () => _openPicker(context),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: hasSelected ? AppColors.primary : AppColors.surface,
+              color: operatorSelected ? AppColors.primary : AppColors.surface,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: hasSelected ? AppColors.primary : AppColors.border,
+                color: operatorSelected ? AppColors.primary : AppColors.border,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  hasSelected ? _selected!.fullName : 'Operator',
+                  activeOp?.fullName ?? 'Operator',
                   style: TextStyle(
-                    color: hasSelected ? Colors.white : const Color(0xFF64748B),
+                    color: operatorSelected
+                        ? Colors.white
+                        : const Color(0xFF64748B),
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -363,7 +394,9 @@ class _FilterRowState extends State<_FilterRow> {
                 Icon(
                   Icons.keyboard_arrow_down_rounded,
                   size: 16,
-                  color: hasSelected ? Colors.white : const Color(0xFF94A3B8),
+                  color: operatorSelected
+                      ? Colors.white
+                      : const Color(0xFF94A3B8),
                 ),
               ],
             ),

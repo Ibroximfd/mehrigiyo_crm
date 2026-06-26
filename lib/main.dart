@@ -41,7 +41,7 @@ class MehrigiyoCrmApp extends StatelessWidget {
           if (state is AuthAuthenticated) {
             // Route based on operator role
             if (state.user.isAdmin) {
-              appRouter.go(RouteNames.adminOperators);
+              appRouter.go(RouteNames.adminLeads);
             } else {
               appRouter.go(RouteNames.sellerKanban);
             }

@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb, setEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../leads/domain/entities/lead_entity.dart';
+import '../../../statuses/domain/entities/status_entity.dart';
 import '../../../operator_chat/domain/usecases/chat_usecases.dart';
 import '../bloc/kanban_bloc.dart';
 import '../widgets/kanban_column.dart';
@@ -63,7 +65,15 @@ class KanbanPage extends StatelessWidget {
           if (state is KanbanLoaded) {
             return _KanbanBoard(
               state: state,
-              onRefresh: () => ctx.read<KanbanBloc>().add(const KanbanLoadRequested()),
+              onRefresh: () => ctx.read<KanbanBloc>().add(KanbanLoadRequested(
+                category: state.category,
+                statusIds: state.selectedStatusIds.toList(),
+              )),
+              onFilterChanged: (category, statusIds) =>
+                  ctx.read<KanbanBloc>().add(KanbanLoadRequested(
+                    category: category,
+                    statusIds: statusIds.toList(),
+                  )),
               onAdd: () => _showCreateDialog(ctx, state),
               onStatusChange: (leadId, newStatusId, oldStatusId) {
                 ctx.read<KanbanBloc>().add(KanbanLeadStatusChanged(
@@ -139,6 +149,7 @@ class _KanbanBoard extends StatefulWidget {
   final KanbanLoaded state;
   final VoidCallback onRefresh;
   final VoidCallback onAdd;
+  final void Function(String? category, Set<int> statusIds) onFilterChanged;
   final void Function(int leadId, int newStatusId, int oldStatusId) onStatusChange;
   final void Function(int leadId) onLeadTap;
   final void Function(LeadEntity lead) onChatTap;
@@ -147,6 +158,7 @@ class _KanbanBoard extends StatefulWidget {
     required this.state,
     required this.onRefresh,
     required this.onAdd,
+    required this.onFilterChanged,
     required this.onStatusChange,
     required this.onLeadTap,
     required this.onChatTap,
@@ -189,6 +201,11 @@ class _KanbanBoardState extends State<_KanbanBoard> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final dragEnabled = kIsWeb;
+    final visibleStatuses = state.visibleStatuses;
+    final totalLeads = visibleStatuses.fold<int>(
+      0,
+      (a, s) => a + (state.leadsByStatus[s.id]?.length ?? 0),
+    );
 
     return Stack(
       children: [
@@ -196,49 +213,62 @@ class _KanbanBoardState extends State<_KanbanBoard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _KanbanHeader(
-              totalLeads: state.leadsByStatus.values.fold(0, (a, b) => a + b.length),
+              totalLeads: totalLeads,
               isMoving: state.isMoving,
               onRefresh: widget.onRefresh,
               onAdd: widget.onAdd,
             ),
+            _KanbanFilterBar(
+              statuses: state.statuses,
+              category: state.category,
+              selectedStatusIds: state.selectedStatusIds,
+              onChanged: widget.onFilterChanged,
+            ),
             Expanded(
-              child: RefreshIndicator(
-                color: AppColors.primary,
-                onRefresh: () async => widget.onRefresh(),
-                child: Listener(
-                  onPointerSignal: _onPointerSignal,
-                  child: SingleChildScrollView(
-                    controller: _hCtrl,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: SizedBox(
-                      height: double.infinity,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: state.statuses.map((s) {
-                          final leads = state.leadsByStatus[s.id] ?? const [];
-                          return KanbanColumn(
-                            key: ValueKey(s.id),
-                            status: s,
-                            leads: leads,
-                            allStatuses: state.statuses,
-                            dragEnabled: dragEnabled,
-                            activeDrag: _activeDrag,
-                            onStatusChange: widget.onStatusChange,
-                            onDragStateChanged: (d) => _activeDrag.value = d,
-                            onLeadTap: widget.onLeadTap,
-                            onChatTap: widget.onChatTap,
-                          );
-                        }).toList(),
+              child: visibleStatuses.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Tanlangan filtrda ustun yo\'q',
+                        style: TextStyle(color: Color(0xFF94A3B8)),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: AppColors.primary,
+                      onRefresh: () async => widget.onRefresh(),
+                      child: Listener(
+                        onPointerSignal: _onPointerSignal,
+                        child: SingleChildScrollView(
+                          controller: _hCtrl,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          child: SizedBox(
+                            height: double.infinity,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: visibleStatuses.map((s) {
+                                final leads = state.leadsByStatus[s.id] ?? const [];
+                                return KanbanColumn(
+                                  key: ValueKey(s.id),
+                                  status: s,
+                                  leads: leads,
+                                  allStatuses: state.statuses,
+                                  dragEnabled: dragEnabled,
+                                  activeDrag: _activeDrag,
+                                  onStatusChange: widget.onStatusChange,
+                                  onDragStateChanged: (d) => _activeDrag.value = d,
+                                  onLeadTap: widget.onLeadTap,
+                                  onChatTap: widget.onChatTap,
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ],
         ),
-        if (state.isMoving)
+        if (state.isMoving || state.isFiltering)
           const Positioned(
             top: 0,
             left: 0,
@@ -308,6 +338,170 @@ class _KanbanHeader extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Server-side status filter for the board. Category selector (Hammasi / Sotuv /
+/// Sotuvdan keyin) plus multi-select status chips. Selection is kept locally for
+/// instant chip feedback and the actual reload is debounced so rapid taps issue
+/// a single request (`?category=post_sale&status=5,6`).
+class _KanbanFilterBar extends StatefulWidget {
+  final List<StatusEntity> statuses;
+  final String? category;
+  final Set<int> selectedStatusIds;
+  final void Function(String? category, Set<int> statusIds) onChanged;
+
+  const _KanbanFilterBar({
+    required this.statuses,
+    required this.category,
+    required this.selectedStatusIds,
+    required this.onChanged,
+  });
+
+  @override
+  State<_KanbanFilterBar> createState() => _KanbanFilterBarState();
+}
+
+class _KanbanFilterBarState extends State<_KanbanFilterBar> {
+  late String? _category = widget.category;
+  late Set<int> _selected = {...widget.selectedStatusIds};
+  Timer? _debounce;
+
+  static const _categories = <String?, String>{
+    null: 'Hammasi',
+    'sales': 'Sotuv',
+    'post_sale': 'Sotuvdan keyin',
+  };
+
+  @override
+  void didUpdateWidget(covariant _KanbanFilterBar old) {
+    super.didUpdateWidget(old);
+    // Resync from the committed state when no edit is pending (e.g. after a
+    // refresh) so the chips never drift from what the board is actually showing.
+    if (_debounce?.isActive != true &&
+        (widget.category != _category ||
+            !setEquals(widget.selectedStatusIds, _selected))) {
+      _category = widget.category;
+      _selected = {...widget.selectedStatusIds};
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _dispatch() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      widget.onChanged(_category, _selected);
+    });
+  }
+
+  void _selectCategory(String? category) {
+    if (_category == category) return;
+    setState(() {
+      _category = category;
+      _selected = {}; // statuses differ per category — reset the selection
+    });
+    _dispatch();
+  }
+
+  void _toggleStatus(int id) {
+    setState(() {
+      if (!_selected.add(id)) _selected.remove(id);
+    });
+    _dispatch();
+  }
+
+  Color _statusColor(StatusEntity s) {
+    final h = s.color.replaceFirst('#', '');
+    try {
+      return Color(int.parse('FF$h', radix: 16));
+    } catch (_) {
+      return AppColors.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statuses = _category == null
+        ? widget.statuses
+        : widget.statuses.where((s) => s.category == _category).toList();
+
+    return Container(
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _categories.entries.map((e) {
+                final selected = _category == e.key;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(e.value),
+                    selected: selected,
+                    onSelected: (_) => _selectCategory(e.key),
+                    selectedColor: AppColors.primary,
+                    labelStyle: TextStyle(
+                      color: selected ? Colors.white : const Color(0xFF475569),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5,
+                    ),
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    side: BorderSide.none,
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          if (statuses.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: statuses.map((s) {
+                  final selected = _selected.contains(s.id);
+                  final col = _statusColor(s);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(s.name),
+                      selected: selected,
+                      onSelected: (_) => _toggleStatus(s.id),
+                      avatar: CircleAvatar(backgroundColor: col, radius: 6),
+                      selectedColor: col.withValues(alpha: 0.18),
+                      checkmarkColor: col,
+                      labelStyle: TextStyle(
+                        color: selected ? col : const Color(0xFF475569),
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 12.5,
+                      ),
+                      backgroundColor: const Color(0xFFF8FAFC),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: selected ? col : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
         ],
       ),
     );

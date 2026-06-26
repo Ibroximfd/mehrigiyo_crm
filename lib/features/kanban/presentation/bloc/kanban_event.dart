@@ -7,7 +7,16 @@ abstract class KanbanEvent extends Equatable {
 }
 
 class KanbanLoadRequested extends KanbanEvent {
-  const KanbanLoadRequested();
+  /// Status category filter: 'sales' | 'post_sale'. Null = all categories.
+  final String? category;
+
+  /// Selected status ids. Empty/null = all statuses (within [category]).
+  final List<int>? statusIds;
+
+  const KanbanLoadRequested({this.category, this.statusIds});
+
+  @override
+  List<Object?> get props => [category, statusIds];
 }
 
 class KanbanLeadStatusChanged extends KanbanEvent {

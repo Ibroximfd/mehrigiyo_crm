@@ -4,7 +4,7 @@ import '../entities/lead_entity.dart';
 
 abstract class LeadRepository {
   // Seller
-  Future<Either<Failure, List<LeadEntity>>> getMyLeads({int? statusId, String? category, int page = 1});
+  Future<Either<Failure, List<LeadEntity>>> getMyLeads({List<int>? statusIds, String? category, int page = 1});
   Future<Either<Failure, LeadEntity>> createLead({
     required String fullName,
     required String phone,
@@ -22,6 +22,7 @@ abstract class LeadRepository {
     int? statusId,
     int? assignedTo,
     String? source,
+    bool unassigned = false,
     int page = 1,
   });
   Future<Either<Failure, int>> assignLeads({

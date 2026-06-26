@@ -10,10 +10,10 @@ class LeadRepositoryImpl implements LeadRepository {
 
   @override
   Future<Either<Failure, List<LeadEntity>>> getMyLeads({
-    int? statusId, String? category, int page = 1,
+    List<int>? statusIds, String? category, int page = 1,
   }) async {
     try {
-      return Right(await remoteDataSource.getMyLeads(statusId: statusId, category: category, page: page));
+      return Right(await remoteDataSource.getMyLeads(statusIds: statusIds, category: category, page: page));
     } on Failure catch (e) {
       return Left(e);
     } catch (_) {
@@ -75,11 +75,11 @@ class LeadRepositoryImpl implements LeadRepository {
 
   @override
   Future<Either<Failure, List<LeadEntity>>> getAdminLeads({
-    int? statusId, int? assignedTo, String? source, int page = 1,
+    int? statusId, int? assignedTo, String? source, bool unassigned = false, int page = 1,
   }) async {
     try {
       return Right(await remoteDataSource.getAdminLeads(
-        statusId: statusId, assignedTo: assignedTo, source: source, page: page,
+        statusId: statusId, assignedTo: assignedTo, source: source, unassigned: unassigned, page: page,
       ));
     } on Failure catch (e) {
       return Left(e);

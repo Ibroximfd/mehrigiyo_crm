@@ -344,6 +344,10 @@ class _Avatar extends StatelessWidget {
           backgroundColor: AppColors.primaryLight,
           backgroundImage:
               avatarUrl != null && avatarUrl!.isNotEmpty ? NetworkImage(avatarUrl!) : null,
+          // Web blocks cross-origin canvas decode (CORS) → swallow the failure
+          // so it doesn't spam the console; the initial letter stays as fallback.
+          onBackgroundImageError:
+              avatarUrl != null && avatarUrl!.isNotEmpty ? (_, _) {} : null,
           child: avatarUrl == null || avatarUrl!.isEmpty
               ? Text(
                   initial,

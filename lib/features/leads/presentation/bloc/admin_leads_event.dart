@@ -10,9 +10,15 @@ class AdminLeadsLoadRequested extends AdminLeadsEvent {
   final int? statusId;
   final int? assignedTo;
   final String? source;
-  const AdminLeadsLoadRequested({this.statusId, this.assignedTo, this.source});
+  final bool unassigned;
+  const AdminLeadsLoadRequested({
+    this.statusId,
+    this.assignedTo,
+    this.source,
+    this.unassigned = false,
+  });
   @override
-  List<Object?> get props => [statusId, assignedTo, source];
+  List<Object?> get props => [statusId, assignedTo, source, unassigned];
 }
 
 class AdminLeadsLoadMore extends AdminLeadsEvent {

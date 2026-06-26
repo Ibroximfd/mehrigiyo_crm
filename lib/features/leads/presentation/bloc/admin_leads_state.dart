@@ -16,6 +16,7 @@ class AdminLeadsLoaded extends AdminLeadsState {
   final int page;
   final int? filterStatusId;
   final int? filterOperatorId;
+  final bool filterUnassigned;
   final Set<int> selectedIds;
   final String? assignError;
 
@@ -25,6 +26,7 @@ class AdminLeadsLoaded extends AdminLeadsState {
     this.page = 1,
     this.filterStatusId,
     this.filterOperatorId,
+    this.filterUnassigned = false,
     this.selectedIds = const {},
     this.assignError,
   });
@@ -35,6 +37,7 @@ class AdminLeadsLoaded extends AdminLeadsState {
     int? page,
     int? filterStatusId,
     int? filterOperatorId,
+    bool? filterUnassigned,
     Set<int>? selectedIds,
     String? assignError,
   }) =>
@@ -44,12 +47,13 @@ class AdminLeadsLoaded extends AdminLeadsState {
         page: page ?? this.page,
         filterStatusId: filterStatusId ?? this.filterStatusId,
         filterOperatorId: filterOperatorId ?? this.filterOperatorId,
+        filterUnassigned: filterUnassigned ?? this.filterUnassigned,
         selectedIds: selectedIds ?? this.selectedIds,
         assignError: assignError ?? this.assignError,
       );
 
   @override
-  List<Object?> get props => [leads, hasMore, page, filterStatusId, filterOperatorId, selectedIds, assignError];
+  List<Object?> get props => [leads, hasMore, page, filterStatusId, filterOperatorId, filterUnassigned, selectedIds, assignError];
 }
 
 class AdminLeadsError extends AdminLeadsState {

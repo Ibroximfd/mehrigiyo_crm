@@ -15,6 +15,7 @@ import '../../features/kanban/presentation/bloc/kanban_bloc.dart';
 import '../../features/kanban/presentation/pages/kanban_page.dart';
 import '../../features/operator_chat/presentation/bloc/chat_list_bloc.dart';
 import '../../features/operator_chat/presentation/bloc/chat_room_bloc.dart';
+import '../../features/operator_chat/presentation/bloc/audio/audio_bloc.dart';
 import '../../features/operator_chat/presentation/pages/chat_list_page.dart';
 import '../../features/operator_chat/presentation/pages/chat_room_page.dart';
 import '../../features/operator_panel/presentation/layouts/operator_admin_layout.dart';
@@ -129,7 +130,7 @@ final GoRouter appRouter = GoRouter(
             MultiBlocProvider(
               providers: [
                 BlocProvider(
-                  create: (_) => getIt<AdminLeadsBloc>()..add(const AdminLeadsLoadRequested()),
+                  create: (_) => getIt<AdminLeadsBloc>()..add(const AdminLeadsLoadRequested(unassigned: true)),
                 ),
                 BlocProvider(
                   create: (_) => getIt<OperatorsBloc>()..add(const OperatorsLoadRequested()),
@@ -234,8 +235,11 @@ final GoRouter appRouter = GoRouter(
             return _slidePage(
               ctx,
               state,
-              BlocProvider(
-                create: (_) => getIt<ChatRoomBloc>(),
+              MultiBlocProvider(
+                providers: [
+                  BlocProvider(create: (_) => getIt<ChatRoomBloc>()),
+                  BlocProvider(create: (_) => AudioBloc()),
+                ],
                 child: ChatRoomPage(
                   roomId: id,
                   participantName: name,

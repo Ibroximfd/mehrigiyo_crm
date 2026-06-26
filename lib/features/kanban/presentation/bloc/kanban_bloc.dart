@@ -39,17 +39,34 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
   }
 
   Future<void> _onLoad(KanbanLoadRequested event, Emitter<KanbanState> emit) async {
-    emit(KanbanLoading());
+    final cur = state;
+    final selectedStatusIds = (event.statusIds ?? const <int>[]).toSet();
 
-    final statusResult = await getStatuses();
-    final List<StatusEntity> statuses = statusResult.fold((_) => [], (s) => s);
-
-    if (statuses.isEmpty) {
-      emit(const KanbanError('Statuslar topilmadi. Admin statuslar yaratishi kerak.'));
-      return;
+    // Reuse the already-loaded status universe so a filter change doesn't refetch
+    // it, and keep the board on screen (progress overlay) instead of a spinner.
+    List<StatusEntity> statuses;
+    if (cur is KanbanLoaded && cur.statuses.isNotEmpty) {
+      statuses = cur.statuses;
+      emit(cur.copyWith(
+        isFiltering: true,
+        category: event.category,
+        clearCategory: event.category == null,
+        selectedStatusIds: selectedStatusIds,
+      ));
+    } else {
+      emit(KanbanLoading());
+      final statusResult = await getStatuses();
+      statuses = statusResult.fold((_) => [], (s) => s);
+      if (statuses.isEmpty) {
+        emit(const KanbanError('Statuslar topilmadi. Admin statuslar yaratishi kerak.'));
+        return;
+      }
     }
 
-    final leadsResult = await getMyLeads();
+    final leadsResult = await getMyLeads(
+      statusIds: selectedStatusIds.isEmpty ? null : selectedStatusIds.toList(),
+      category: event.category,
+    );
     final List<LeadEntity> allLeads = leadsResult.fold((_) => [], (l) => l);
 
     final grouped = <int, List<LeadEntity>>{};
@@ -57,7 +74,12 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
       grouped[s.id] = allLeads.where((l) => l.statusId == s.id).toList();
     }
 
-    emit(KanbanLoaded(statuses: statuses, leadsByStatus: grouped));
+    emit(KanbanLoaded(
+      statuses: statuses,
+      leadsByStatus: grouped,
+      category: event.category,
+      selectedStatusIds: selectedStatusIds,
+    ));
 
     // Start WebSocket subscription once
     if (!_wsStarted) {
@@ -106,6 +128,8 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
           statuses: latest.statuses,
           leadsByStatus: reverted ?? latest.leadsByStatus,
           error: failure.message,
+          category: latest.category,
+          selectedStatusIds: latest.selectedStatusIds,
         ));
       },
       // Success — keep the optimistic state; the WS echo is idempotent (no-op).

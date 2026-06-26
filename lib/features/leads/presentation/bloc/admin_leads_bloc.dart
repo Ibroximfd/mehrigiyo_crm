@@ -29,13 +29,15 @@ class AdminLeadsBloc extends Bloc<AdminLeadsEvent, AdminLeadsState> {
   Future<void> _onLoad(AdminLeadsLoadRequested event, Emitter<AdminLeadsState> emit) async {
     emit(AdminLeadsLoading());
     final result = await getAdminLeads(
-      statusId: event.statusId, assignedTo: event.assignedTo, source: event.source,
+      statusId: event.statusId, assignedTo: event.assignedTo,
+      source: event.source, unassigned: event.unassigned,
     );
     result.fold(
       (f) => emit(AdminLeadsError(f.message)),
       (leads) => emit(AdminLeadsLoaded(
         leads: leads, hasMore: leads.length >= 20,
         filterStatusId: event.statusId, filterOperatorId: event.assignedTo,
+        filterUnassigned: event.unassigned,
       )),
     );
   }
@@ -46,6 +48,7 @@ class AdminLeadsBloc extends Bloc<AdminLeadsEvent, AdminLeadsState> {
     final result = await getAdminLeads(
       statusId: cur.filterStatusId,
       assignedTo: cur.filterOperatorId,
+      unassigned: cur.filterUnassigned,
       page: cur.page + 1,
     );
     result.fold(
@@ -73,6 +76,7 @@ class AdminLeadsBloc extends Bloc<AdminLeadsEvent, AdminLeadsState> {
         emit(AdminLeadsAssigned(count));
         add(AdminLeadsLoadRequested(
           statusId: cur.filterStatusId, assignedTo: cur.filterOperatorId,
+          unassigned: cur.filterUnassigned,
         ));
       },
     );

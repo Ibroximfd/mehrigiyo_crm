@@ -6,7 +6,7 @@ import '../../../../core/network/api_client.dart';
 import '../models/lead_model.dart';
 
 abstract class LeadRemoteDataSource {
-  Future<List<LeadModel>> getMyLeads({int? statusId, String? category, int page = 1});
+  Future<List<LeadModel>> getMyLeads({List<int>? statusIds, String? category, int page = 1});
   Future<LeadModel> createLead({
     required String fullName, required String phone,
     String source = 'manual', String? region, String? note, int? statusId,
@@ -14,7 +14,7 @@ abstract class LeadRemoteDataSource {
   Future<LeadModel> getLeadDetail(int id);
   Future<LeadModel> changeLeadStatus({required int leadId, required int statusId});
   Future<List<LeadStatusHistoryModel>> getLeadHistory(int id);
-  Future<List<LeadModel>> getAdminLeads({int? statusId, int? assignedTo, String? source, int page = 1});
+  Future<List<LeadModel>> getAdminLeads({int? statusId, int? assignedTo, String? source, bool unassigned = false, int page = 1});
   Future<int> assignLeads({required List<int> leadIds, required int operatorId});
   Future<int> bulkCreateLeads(List<Map<String, dynamic>> leads);
 }
@@ -29,10 +29,13 @@ class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
   }
 
   @override
-  Future<List<LeadModel>> getMyLeads({int? statusId, String? category, int page = 1}) async {
+  Future<List<LeadModel>> getMyLeads({List<int>? statusIds, String? category, int page = 1}) async {
     try {
       final params = <String, dynamic>{'page': page};
-      if (statusId != null) params['status'] = statusId;
+      // Multiple statuses are sent comma-joined: ?status=2,3,5
+      if (statusIds != null && statusIds.isNotEmpty) {
+        params['status'] = statusIds.join(',');
+      }
       if (category != null) params['category'] = category;
       final res = await apiClient.get(ApiConstants.myLeads, queryParameters: params);
       return _parseList(res.data);
@@ -137,12 +140,13 @@ class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
   }
 
   @override
-  Future<List<LeadModel>> getAdminLeads({int? statusId, int? assignedTo, String? source, int page = 1}) async {
+  Future<List<LeadModel>> getAdminLeads({int? statusId, int? assignedTo, String? source, bool unassigned = false, int page = 1}) async {
     try {
       final params = <String, dynamic>{'page': page};
       if (statusId != null) params['status'] = statusId;
       if (assignedTo != null) params['assigned_to'] = assignedTo;
       if (source != null) params['source'] = source;
+      if (unassigned) params['unassigned'] = 'true';
       final res = await apiClient.get(ApiConstants.adminLeads, queryParameters: params);
       return _parseList(res.data);
     } on DioException catch (e) {

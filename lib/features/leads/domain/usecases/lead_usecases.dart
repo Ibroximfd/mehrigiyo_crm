@@ -7,8 +7,8 @@ class GetMyLeadsUseCase {
   final LeadRepository repo;
   GetMyLeadsUseCase(this.repo);
 
-  Future<Either<Failure, List<LeadEntity>>> call({int? statusId, String? category, int page = 1}) =>
-      repo.getMyLeads(statusId: statusId, category: category, page: page);
+  Future<Either<Failure, List<LeadEntity>>> call({List<int>? statusIds, String? category, int page = 1}) =>
+      repo.getMyLeads(statusIds: statusIds, category: category, page: page);
 }
 
 class CreateLeadUseCase {
@@ -56,9 +56,9 @@ class GetAdminLeadsUseCase {
   GetAdminLeadsUseCase(this.repo);
 
   Future<Either<Failure, List<LeadEntity>>> call({
-    int? statusId, int? assignedTo, String? source, int page = 1,
+    int? statusId, int? assignedTo, String? source, bool unassigned = false, int page = 1,
   }) =>
-      repo.getAdminLeads(statusId: statusId, assignedTo: assignedTo, source: source, page: page);
+      repo.getAdminLeads(statusId: statusId, assignedTo: assignedTo, source: source, unassigned: unassigned, page: page);
 }
 
 class AssignLeadsUseCase {

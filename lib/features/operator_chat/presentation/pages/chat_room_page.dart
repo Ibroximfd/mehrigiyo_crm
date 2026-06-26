@@ -173,7 +173,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.hasClients && _scrollCtrl.position.pixels <= 150) {
+    if (!_scrollCtrl.hasClients) return;
+    // reverse:true → the TOP (older messages) is at the END of the scroll range.
+    final pos = _scrollCtrl.position;
+    if (pos.pixels >= pos.maxScrollExtent - 150) {
       final s = context.read<ChatRoomBloc>().state;
       if (s is ChatRoomLoaded && s.hasOlderMessages && !s.isLoadingMore) {
         context.read<ChatRoomBloc>().add(const ChatRoomLoadMoreRequested());
@@ -191,11 +194,13 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     super.dispose();
   }
 
+  /// With a reverse:true list the bottom (newest message) is offset 0, so going
+  /// to the latest message is just a scroll to 0 — no maxScrollExtent guessing.
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
+          0,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -533,22 +538,28 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       body: BlocConsumer<ChatRoomBloc, ChatRoomState>(
         listenWhen: (p, s) {
           if (s is! ChatRoomLoaded) return false;
-          if (p is! ChatRoomLoaded) return true;
-          return s.messages.length > p.messages.length || s.sendError != null;
+          if (p is! ChatRoomLoaded) return true; // initial load
+          if (s.sendError != null) return true;
+          // React only when a NEW newest message appears (sent/received) — not
+          // when older messages are prepended via load-more.
+          final pLast = p.messages.isNotEmpty ? p.messages.last.id : null;
+          final sLast = s.messages.isNotEmpty ? s.messages.last.id : null;
+          return sLast != pLast;
         },
         listener: (ctx, state) {
-          if (state is ChatRoomLoaded) {
-            if (state.sendError != null) {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                SnackBar(
-                  content: Text(state.sendError!),
-                  backgroundColor: AppColors.error,
-                ),
-              );
-            } else {
-              _scrollToBottom();
-            }
+          if (state is! ChatRoomLoaded) return;
+          if (state.sendError != null) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(state.sendError!),
+                backgroundColor: AppColors.error,
+              ),
+            );
+            return;
           }
+          // reverse:true already opens pinned to the newest message, so we only
+          // animate down when a fresh message arrives while we're near the end.
+          _scrollToBottom();
         },
         builder: (ctx, state) {
           if (state is ChatRoomLoading) {
@@ -593,32 +604,37 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                     : SelectionArea(
                         child: ListView.builder(
                           controller: _scrollCtrl,
+                          // Newest at the bottom; the list opens pinned there.
+                          reverse: true,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           itemCount:
                               state.messages.length +
                               (state.isLoadingMore ? 1 : 0),
                           itemBuilder: (_, i) {
-                            if (state.isLoadingMore && i == 0) {
-                              return const Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
+                            // i == 0 is the bottom (newest). Map into the ASC list
+                            // from the end.
+                            if (i < state.messages.length) {
+                              final msg = state
+                                  .messages[state.messages.length - 1 - i];
+                              return MessageBubble(
+                                message: msg,
+                                onReply: () => ctx.read<ChatRoomBloc>().add(
+                                  ChatRoomReplySet(msg),
                                 ),
                               );
                             }
-                            final msgOffset = state.isLoadingMore ? 1 : 0;
-                            final msg = state.messages[i - msgOffset];
-                            return MessageBubble(
-                              message: msg,
-                              onReply: () => ctx.read<ChatRoomBloc>().add(
-                                ChatRoomReplySet(msg),
+                            // Last item while paginating → spinner at the top.
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
                               ),
                             );
                           },

@@ -30,7 +30,10 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
 
   Future<void> _onLoad(LeadsLoadRequested event, Emitter<LeadsState> emit) async {
     emit(LeadsLoading());
-    final result = await getMyLeads(statusId: event.statusId, category: event.category);
+    final result = await getMyLeads(
+      statusIds: event.statusId == null ? null : [event.statusId!],
+      category: event.category,
+    );
     result.fold(
       (f) => emit(LeadsError(f.message)),
       (leads) => emit(LeadsLoaded(leads: leads, hasMore: leads.length >= 20, filterStatusId: event.statusId)),
@@ -41,7 +44,10 @@ class LeadsBloc extends Bloc<LeadsEvent, LeadsState> {
     final cur = state;
     if (cur is! LeadsLoaded || !cur.hasMore) return;
     final nextPage = cur.page + 1;
-    final result = await getMyLeads(statusId: cur.filterStatusId, page: nextPage);
+    final result = await getMyLeads(
+      statusIds: cur.filterStatusId == null ? null : [cur.filterStatusId!],
+      page: nextPage,
+    );
     result.fold(
       (f) => null,
       (more) => emit(cur.copyWith(
