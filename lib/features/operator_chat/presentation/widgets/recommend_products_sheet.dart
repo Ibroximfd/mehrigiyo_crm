@@ -221,6 +221,9 @@ class _ProductTile extends StatelessWidget {
                       width: 52,
                       height: 52,
                       fit: BoxFit.cover,
+                      // Web: fall back to an HTML <img> when the canvas fetch is
+                      // blocked by CORS, so cross-origin media still renders.
+                      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                       errorBuilder: (context2, e, s) => _placeholder(),
                     )
                   : _placeholder(),

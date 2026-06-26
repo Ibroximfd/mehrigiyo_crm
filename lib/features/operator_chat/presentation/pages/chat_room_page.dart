@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:web/web.dart' as web;
 import '../../../../core/di/di_setup.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/bitrix_call_button.dart';
 import '../../../operator_chat/domain/usecases/chat_usecases.dart';
 import '../../../operator_order/presentation/bloc/operator_order_bloc.dart';
 import '../../../operator_order/presentation/widgets/create_operator_order_dialog.dart';
@@ -485,6 +486,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           ],
         ),
         actions: [
+          if (phone.isNotEmpty) ...[
+            BitrixCallButton(phone: phone, size: 40),
+            const SizedBox(width: 4),
+          ],
           BlocBuilder<ChatRoomBloc, ChatRoomState>(
             buildWhen: (p, s) =>
                 (p is ChatRoomLoaded ? p.isSending : false) !=

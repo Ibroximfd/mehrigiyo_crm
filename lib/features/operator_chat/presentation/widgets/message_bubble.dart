@@ -657,6 +657,9 @@ class _ProductCard extends StatelessWidget {
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,
+                    // Web: fall back to an HTML <img> when the canvas fetch is
+                    // blocked by CORS, so cross-origin media still renders.
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                     errorBuilder: (_, e, s) => _imgPlaceholder(),
                   )
                 : _imgPlaceholder(),

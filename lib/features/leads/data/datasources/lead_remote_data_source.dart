@@ -78,18 +78,51 @@ class LeadRemoteDataSourceImpl implements LeadRemoteDataSource {
         data: {'status_id': statusId},
       );
       // Reaching here means HTTP 2xx (Dio throws DioException otherwise), so the
-      // change is persisted. Never let response-body parsing turn a success into
-      // a failure — parse leniently and fall back to a fresh fetch if needed.
-      final data = res.data;
-      if (data is Map<String, dynamic>) return LeadModel.fromJson(data);
-      if (data is String && data.trim().isNotEmpty) {
-        final decoded = jsonDecode(data);
-        if (decoded is Map<String, dynamic>) return LeadModel.fromJson(decoded);
+      // change is ALREADY persisted on the server. From this point on we must
+      // never throw a non-Dio error — the change-status endpoint returns a body
+      // that isn't a full lead object (no top-level `id`), so LeadModel.fromJson
+      // would throw a TypeError and wrongly surface as a failure.
+      final parsed = _tryParseLead(res.data);
+      if (parsed != null) return parsed;
+
+      // Body wasn't a usable lead — fetch the fresh lead. If even that fails,
+      // synthesise a minimal success: the move is persisted and the caller only
+      // needs to know it succeeded (the optimistic UI state already has the data).
+      try {
+        return await getLeadDetail(leadId);
+      } catch (_) {
+        return LeadModel(
+          id: leadId,
+          fullName: '',
+          phone: '',
+          statusId: statusId,
+          source: 'manual',
+          createdAt: '',
+          updatedAt: '',
+        );
       }
-      return await getLeadDetail(leadId);
     } on DioException catch (e) {
       throw dioFailure(e, 'Status o\'zgartirishda xatolik');
     }
+  }
+
+  /// Parses a lead from a response body without ever throwing. Returns null when
+  /// the body isn't a full lead object (e.g. it lacks an `id`), so the caller
+  /// can fall back. Guards against both wrong-type bodies and parse errors.
+  LeadModel? _tryParseLead(dynamic data) {
+    try {
+      Map<String, dynamic>? map;
+      if (data is Map<String, dynamic>) {
+        map = data;
+      } else if (data is String && data.trim().isNotEmpty) {
+        final decoded = jsonDecode(data);
+        if (decoded is Map<String, dynamic>) map = decoded;
+      }
+      if (map != null && map['id'] != null) return LeadModel.fromJson(map);
+    } catch (_) {
+      // fall through — caller will fetch or synthesise
+    }
+    return null;
   }
 
   @override

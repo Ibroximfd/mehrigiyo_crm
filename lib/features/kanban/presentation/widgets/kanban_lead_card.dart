@@ -1,14 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/bitrix_call_button.dart';
 import '../../../leads/domain/entities/lead_entity.dart';
 import '../../../statuses/domain/entities/status_entity.dart';
 import '../../../statuses/presentation/widgets/status_picker_dialog.dart';
+import 'lead_drag_feedback_widget.dart';
 
 class KanbanLeadCard extends StatefulWidget {
   final LeadEntity lead;
   final List<StatusEntity> allStatuses;
+
+  /// Id of the column this card currently lives in (drag source).
+  final int currentStatusId;
+
+  /// Accent color of the owning column (used for the drag feedback border).
+  final Color accent;
+
+  /// When true the card can be dragged between columns (web only).
+  final bool dragEnabled;
+
   final void Function(int newStatusId) onStatusChange;
+
+  /// Notifies the board that a drag started ([data] != null) or ended (null),
+  /// so every valid target column can highlight itself.
+  final void Function(LeadDragData? data) onDragStateChanged;
+
   final VoidCallback? onTap;
   final VoidCallback? onChatTap;
 
@@ -16,7 +33,11 @@ class KanbanLeadCard extends StatefulWidget {
     super.key,
     required this.lead,
     required this.allStatuses,
+    required this.currentStatusId,
+    required this.accent,
+    required this.dragEnabled,
     required this.onStatusChange,
+    required this.onDragStateChanged,
     this.onTap,
     this.onChatTap,
   });
@@ -25,13 +46,124 @@ class KanbanLeadCard extends StatefulWidget {
   State<KanbanLeadCard> createState() => _KanbanLeadCardState();
 }
 
-class _KanbanLeadCardState extends State<KanbanLeadCard> {
+class _KanbanLeadCardState extends State<KanbanLeadCard>
+    with TickerProviderStateMixin {
   bool _hovered = false;
+  bool _dragging = false;
+
+  // One-shot entrance: slide from top + fade. Plays once per mount, so a card
+  // only animates when it first appears in a column (incl. after a move).
+  late final AnimationController _entranceCtrl;
+  // Pickup feedback: scales the in-place card to 0.95 the moment a drag starts.
+  late final AnimationController _pickupCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _entranceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..forward();
+    _pickupCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      lowerBound: 0.95,
+      upperBound: 1.0,
+      value: 1.0,
+    );
+  }
+
+  @override
+  void dispose() {
+    _entranceCtrl.dispose();
+    _pickupCtrl.dispose();
+    super.dispose();
+  }
+
+  LeadDragData get _dragData =>
+      LeadDragData(leadId: widget.lead.id, fromStatusId: widget.currentStatusId);
+
+  /// Compact dd.MM.yyyy created date, or null if the raw value can't be parsed.
+  String? get _createdDate {
+    final raw = widget.lead.createdAt;
+    if (raw.isEmpty) return null;
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return null;
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$d.$m.${dt.year}';
+  }
+
+  void _onDragStarted() {
+    setState(() => _dragging = true);
+    _pickupCtrl.reverse(); // 1.0 -> 0.95
+    widget.onDragStateChanged(_dragData);
+  }
+
+  void _onDragFinished() {
+    if (mounted) setState(() => _dragging = false);
+    _pickupCtrl.forward(); // back to 1.0
+    widget.onDragStateChanged(null);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final entrance = CurvedAnimation(parent: _entranceCtrl, curve: Curves.easeOutCubic);
+    final card = FadeTransition(
+      opacity: entrance,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.12),
+          end: Offset.zero,
+        ).animate(entrance),
+        child: _buildCard(context),
+      ),
+    );
+
+    if (!widget.dragEnabled) return card;
+
+    return Draggable<LeadDragData>(
+      data: _dragData,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: LeadDragFeedbackWidget(lead: widget.lead, accent: widget.accent),
+      childWhenDragging: _placeholder(context),
+      onDragStarted: _onDragStarted,
+      onDragEnd: (_) => _onDragFinished(),
+      onDraggableCanceled: (_, _) => _onDragFinished(),
+      onDragCompleted: _onDragFinished,
+      child: MouseRegion(
+        cursor: _dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+        child: ScaleTransition(
+          scale: _pickupCtrl,
+          alignment: Alignment.center,
+          child: card,
+        ),
+      ),
+    );
+  }
+
+  /// Same footprint as the real card but invisible, with a dashed border drawn
+  /// on top — keeps the column from collapsing while the card is in flight.
+  Widget _placeholder(BuildContext context) {
+    return Stack(
+      children: [
+        Opacity(opacity: 0, child: _buildCard(context)),
+        const Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 8,
+          child: _DashedSlot(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: widget.dragEnabled
+          ? SystemMouseCursors.grab
+          : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
@@ -109,6 +241,20 @@ class _KanbanLeadCardState extends State<KanbanLeadCard> {
                         ],
                       ),
                     ],
+                    if (widget.lead.assignedTo != null) ...[
+                      const SizedBox(height: 3),
+                      _MetaRow(
+                        icon: Icons.person_rounded,
+                        text: widget.lead.assignedTo!.fullName,
+                      ),
+                    ],
+                    if (_createdDate != null) ...[
+                      const SizedBox(height: 3),
+                      _MetaRow(
+                        icon: Icons.calendar_today_rounded,
+                        text: _createdDate!,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -136,6 +282,7 @@ class _KanbanLeadCardState extends State<KanbanLeadCard> {
                       onTap: widget.onChatTap,
                     ),
                     const SizedBox(width: 8),
+                    BitrixCallButton(phone: widget.lead.phone, size: 36),
                     const Spacer(),
                     _ActionBtn(
                       icon: Icons.swap_horiz_rounded,
@@ -163,6 +310,89 @@ class _KanbanLeadCardState extends State<KanbanLeadCard> {
       onSelected: widget.onStatusChange,
     );
   }
+}
+
+class _MetaRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _MetaRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: const Color(0xFF94A3B8)),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashedSlot extends StatelessWidget {
+  const _DashedSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: CustomPaint(
+        painter: _DashedRectPainter(
+          color: AppColors.primary.withValues(alpha: 0.5),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.drag_indicator_rounded,
+            size: 20,
+            color: AppColors.primary.withValues(alpha: 0.35),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRectPainter extends CustomPainter {
+  final Color color;
+  const _DashedRectPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Offset.zero & size,
+        const Radius.circular(14),
+      ));
+    const dash = 6.0;
+    const gap = 4.0;
+    for (final metric in path.computeMetrics()) {
+      double d = 0;
+      while (d < metric.length) {
+        final next = d + dash;
+        canvas.drawPath(
+          metric.extractPath(d, next.clamp(0, metric.length)),
+          paint,
+        );
+        d = next + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedRectPainter old) => old.color != color;
 }
 
 class _ActionBtn extends StatelessWidget {

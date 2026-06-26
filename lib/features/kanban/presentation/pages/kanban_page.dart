@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -8,6 +10,7 @@ import '../../../leads/domain/entities/lead_entity.dart';
 import '../../../operator_chat/domain/usecases/chat_usecases.dart';
 import '../bloc/kanban_bloc.dart';
 import '../widgets/kanban_column.dart';
+import '../widgets/lead_drag_feedback_widget.dart';
 class KanbanPage extends StatelessWidget {
   const KanbanPage({super.key});
 
@@ -15,7 +18,19 @@ class KanbanPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: BlocBuilder<KanbanBloc, KanbanState>(
+      body: BlocConsumer<KanbanBloc, KanbanState>(
+        listenWhen: (_, curr) => curr is KanbanMoveFailure,
+        listener: (ctx, state) {
+          if (state is KanbanMoveFailure) {
+            ScaffoldMessenger.of(ctx)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(
+                content: Text(state.error),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+              ));
+          }
+        },
         builder: (ctx, state) {
           if (state is KanbanLoading) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
@@ -46,62 +61,19 @@ class KanbanPage extends StatelessWidget {
             );
           }
           if (state is KanbanLoaded) {
-            return Stack(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _KanbanHeader(
-                      totalLeads: state.leadsByStatus.values.fold(0, (a, b) => a + b.length),
-                      isMoving: state.isMoving,
-                      onRefresh: () => ctx.read<KanbanBloc>().add(const KanbanLoadRequested()),
-                      onAdd: () => _showCreateDialog(ctx, state),
-                    ),
-                    Expanded(
-                      child: RefreshIndicator(
-                        color: AppColors.primary,
-                        onRefresh: () async =>
-                            ctx.read<KanbanBloc>().add(const KanbanLoadRequested()),
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          child: SizedBox(
-                            height: double.infinity,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: state.statuses.map((s) {
-                                final leads = state.leadsByStatus[s.id] ?? [];
-                                return KanbanColumn(
-                                  status: s,
-                                  leads: leads,
-                                  allStatuses: state.statuses,
-                                  onStatusChange: (leadId, newStatusId, oldStatusId) {
-                                    ctx.read<KanbanBloc>().add(KanbanLeadStatusChanged(
-                                      leadId: leadId,
-                                      newStatusId: newStatusId,
-                                      oldStatusId: oldStatusId,
-                                    ));
-                                  },
-                                  onLeadTap: (leadId) => ctx.push(RouteNames.sellerLeadDetail(leadId)),
-                                  onChatTap: (lead) => _openChat(ctx, lead),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (state.isMoving)
-                  const Positioned(
-                    top: 0, left: 0, right: 0,
-                    child: LinearProgressIndicator(
-                      color: AppColors.primary,
-                      backgroundColor: AppColors.primaryLight,
-                    ),
-                  ),
-              ],
+            return _KanbanBoard(
+              state: state,
+              onRefresh: () => ctx.read<KanbanBloc>().add(const KanbanLoadRequested()),
+              onAdd: () => _showCreateDialog(ctx, state),
+              onStatusChange: (leadId, newStatusId, oldStatusId) {
+                ctx.read<KanbanBloc>().add(KanbanLeadStatusChanged(
+                  leadId: leadId,
+                  newStatusId: newStatusId,
+                  oldStatusId: oldStatusId,
+                ));
+              },
+              onLeadTap: (leadId) => ctx.push(RouteNames.sellerLeadDetail(leadId)),
+              onChatTap: (lead) => _openChat(ctx, lead),
             );
           }
           return const SizedBox.shrink();
@@ -154,6 +126,127 @@ class KanbanPage extends StatelessWidget {
         value: context.read<KanbanBloc>(),
         child: _CreateLeadKanbanDialog(statuses: state.statuses),
       ),
+    );
+  }
+}
+
+/// Horizontally-scrollable board. Owns the shared drag payload (so every valid
+/// column can highlight on drag start) and a horizontal scroll controller wired
+/// to mouse-wheel input. Stateful only to manage those two resources.
+class _KanbanBoard extends StatefulWidget {
+  final KanbanLoaded state;
+  final VoidCallback onRefresh;
+  final VoidCallback onAdd;
+  final void Function(int leadId, int newStatusId, int oldStatusId) onStatusChange;
+  final void Function(int leadId) onLeadTap;
+  final void Function(LeadEntity lead) onChatTap;
+
+  const _KanbanBoard({
+    required this.state,
+    required this.onRefresh,
+    required this.onAdd,
+    required this.onStatusChange,
+    required this.onLeadTap,
+    required this.onChatTap,
+  });
+
+  @override
+  State<_KanbanBoard> createState() => _KanbanBoardState();
+}
+
+class _KanbanBoardState extends State<_KanbanBoard> {
+  final ValueNotifier<LeadDragData?> _activeDrag = ValueNotifier(null);
+  final ScrollController _hCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _activeDrag.dispose();
+    _hCtrl.dispose();
+    super.dispose();
+  }
+
+  // Translate a vertical mouse wheel into horizontal board scrolling. Using the
+  // pointer-signal resolver means an inner (vertical) column list registers
+  // first and wins when hovered — so card lists still scroll vertically.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_hCtrl.hasClients) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+      final scroll = e as PointerScrollEvent;
+      final delta = scroll.scrollDelta.dy != 0
+          ? scroll.scrollDelta.dy
+          : scroll.scrollDelta.dx;
+      final target = (_hCtrl.offset + delta).clamp(
+        _hCtrl.position.minScrollExtent,
+        _hCtrl.position.maxScrollExtent,
+      );
+      if (target != _hCtrl.offset) _hCtrl.jumpTo(target);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final dragEnabled = kIsWeb;
+
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _KanbanHeader(
+              totalLeads: state.leadsByStatus.values.fold(0, (a, b) => a + b.length),
+              isMoving: state.isMoving,
+              onRefresh: widget.onRefresh,
+              onAdd: widget.onAdd,
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: () async => widget.onRefresh(),
+                child: Listener(
+                  onPointerSignal: _onPointerSignal,
+                  child: SingleChildScrollView(
+                    controller: _hCtrl,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: SizedBox(
+                      height: double.infinity,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: state.statuses.map((s) {
+                          final leads = state.leadsByStatus[s.id] ?? const [];
+                          return KanbanColumn(
+                            key: ValueKey(s.id),
+                            status: s,
+                            leads: leads,
+                            allStatuses: state.statuses,
+                            dragEnabled: dragEnabled,
+                            activeDrag: _activeDrag,
+                            onStatusChange: widget.onStatusChange,
+                            onDragStateChanged: (d) => _activeDrag.value = d,
+                            onLeadTap: widget.onLeadTap,
+                            onChatTap: widget.onChatTap,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (state.isMoving)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              color: AppColors.primary,
+              backgroundColor: AppColors.primaryLight,
+            ),
+          ),
+      ],
     );
   }
 }

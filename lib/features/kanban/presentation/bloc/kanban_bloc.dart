@@ -94,7 +94,7 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
     if (latest is! KanbanLoaded) return;
 
     result.fold(
-      (_) {
+      (failure) {
         // Genuine API failure — revert just this lead, based on the latest state
         // (never wipe concurrent updates by reusing the stale snapshot).
         final reverted = _moveLead(
@@ -102,9 +102,10 @@ class KanbanBloc extends Bloc<KanbanEvent, KanbanState> {
           leadId: event.leadId,
           toStatusId: event.oldStatusId,
         );
-        emit(latest.copyWith(
+        emit(KanbanMoveFailure(
+          statuses: latest.statuses,
           leadsByStatus: reverted ?? latest.leadsByStatus,
-          isMoving: false,
+          error: failure.message,
         ));
       },
       // Success — keep the optimistic state; the WS echo is idempotent (no-op).

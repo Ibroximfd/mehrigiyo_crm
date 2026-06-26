@@ -390,6 +390,9 @@ class _ProductRow extends StatelessWidget {
                     width: 40,
                     height: 40,
                     fit: BoxFit.cover,
+                    // Web: fall back to an HTML <img> when the canvas fetch is
+                    // blocked by CORS, so cross-origin media still renders.
+                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                     errorBuilder: (ctx, e, s) => _placeholder(),
                   )
                 : _placeholder(),
