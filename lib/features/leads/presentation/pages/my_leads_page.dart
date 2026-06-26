@@ -158,7 +158,13 @@ class MyLeadsPage extends StatelessWidget {
       )),
       (room) => context.push(
         RouteNames.sellerChatRoom(room.id),
-        extra: {'name': room.participantName, 'phone': room.participantPhone, 'leadId': lead.id},
+        extra: {
+          // Fall back to the lead's own name/phone when the chat room has no
+          // client name (e.g. client registered with phone only).
+          'name': room.participantName.isNotEmpty ? room.participantName : lead.fullName,
+          'phone': room.participantPhone.isNotEmpty ? room.participantPhone : lead.phone,
+          'leadId': lead.id,
+        },
       ),
     );
   }

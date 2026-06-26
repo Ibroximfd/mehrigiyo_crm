@@ -372,16 +372,27 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     );
   }
 
+  /// Header name priority: route-supplied name → the client's name taken from
+  /// their own messages (sender) → phone → 'Mijoz'. This way the client's name
+  /// shows even when the chat room itself carries no participant name.
+  String _resolveDisplayName(String routeName, String phone, ChatRoomLoaded? state) {
+    if (routeName.isNotEmpty) return routeName;
+    if (state != null) {
+      for (final m in state.messages) {
+        if (!m.isMine) {
+          final n = m.senderName?.trim() ?? '';
+          if (n.isNotEmpty) return n;
+        }
+      }
+    }
+    if (phone.isNotEmpty) return phone;
+    return 'Mijoz';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasName = widget.participantName?.isNotEmpty == true;
-    final displayName = hasName
-        ? widget.participantName!
-        : (widget.participantPhone?.isNotEmpty == true
-              ? widget.participantPhone!
-              : 'Mijoz');
+    final routeName = widget.participantName?.trim() ?? '';
     final phone = widget.participantPhone ?? '';
-    final initial = displayName[0].toUpperCase();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0FAF7),
@@ -395,40 +406,52 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           onPressed: () => context.pop(),
           color: Colors.white,
         ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.accent.withValues(alpha: 0.25),
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  color: AppColors.accent,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
+        title: BlocBuilder<ChatRoomBloc, ChatRoomState>(
+          buildWhen: (p, s) {
+            final po = p is ChatRoomLoaded;
+            final so = s is ChatRoomLoaded;
+            if (po != so) return true;
+            if (po && so) {
+              // Rebuild on online change, and when messages load/arrive (the
+              // client's name is derived from their messages).
+              return p.isOnline != s.isOnline ||
+                  p.messages.length != s.messages.length;
+            }
+            return false;
+          },
+          builder: (_, state) {
+            final loaded = state is ChatRoomLoaded ? state : null;
+            final isOnline = loaded?.isOnline ?? false;
+            final displayName = _resolveDisplayName(routeName, phone, loaded);
+            final initial =
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+            return Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.accent.withValues(alpha: 0.25),
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SelectionArea(
-                child: BlocBuilder<ChatRoomBloc, ChatRoomState>(
-                  buildWhen: (p, s) =>
-                      (p is ChatRoomLoaded) != (s is ChatRoomLoaded) ||
-                      (p is ChatRoomLoaded &&
-                          s is ChatRoomLoaded &&
-                          p.isOnline != s.isOnline),
-                  builder: (_, state) {
-                    final isOnline = state is ChatRoomLoaded && state.isOnline;
-                    return Column(
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SelectionArea(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           displayName,
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 18,
                             fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -478,12 +501,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                           ],
                         ),
                       ],
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
         actions: [
           if (phone.isNotEmpty) ...[

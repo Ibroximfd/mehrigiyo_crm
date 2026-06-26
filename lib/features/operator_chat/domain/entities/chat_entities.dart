@@ -59,6 +59,7 @@ class ChatMessageEntity extends Equatable {
   final String text;
   final bool isMine;
   final bool isRead;
+  final String? senderName;
   final ChatMessageReply? replyTo;
   final List<ChatAttachment> attachments;
   final ChatRecommendation? recommendation;
@@ -70,6 +71,7 @@ class ChatMessageEntity extends Equatable {
     required this.text,
     required this.isMine,
     this.isRead = false,
+    this.senderName,
     this.replyTo,
     this.attachments = const [],
     this.recommendation,
@@ -82,7 +84,7 @@ class ChatMessageEntity extends Equatable {
 
   @override
   List<Object?> get props =>
-      [id, messageType, text, isMine, isRead, replyTo, attachments, recommendation, createdAt];
+      [id, messageType, text, isMine, isRead, senderName, replyTo, attachments, recommendation, createdAt];
 }
 
 class ChatAttachment extends Equatable {

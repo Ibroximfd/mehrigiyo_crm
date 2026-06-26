@@ -62,6 +62,7 @@ class ChatMessageModel extends ChatMessageEntity {
     required super.text,
     required super.isMine,
     super.isRead,
+    super.senderName,
     super.replyTo,
     super.attachments,
     super.recommendation,
@@ -71,6 +72,16 @@ class ChatMessageModel extends ChatMessageEntity {
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
     final recJson = json['recommendation'] as Map<String, dynamic>?;
     final msgType = json['message_type']?.toString() ?? 'text';
+
+    // Sender display name (first + last). Used to show the client's name in the
+    // chat header when the room itself carries no participant name.
+    final sender = json['sender'] as Map<String, dynamic>?;
+    final senderName = sender == null
+        ? null
+        : [
+            sender['first_name']?.toString() ?? '',
+            sender['last_name']?.toString() ?? '',
+          ].where((s) => s.isNotEmpty).join(' ').trim();
 
     // Parse attachments — try list first, then top-level file field
     final attachmentsRaw = json['attachments'] as List? ?? [];
@@ -116,6 +127,7 @@ class ChatMessageModel extends ChatMessageEntity {
       text: json['text']?.toString() ?? '',
       isMine: json['is_mine'] as bool? ?? false,
       isRead: json['is_read'] as bool? ?? false,
+      senderName: (senderName != null && senderName.isNotEmpty) ? senderName : null,
       replyTo: replyTo,
       attachments: attachments,
       recommendation: recJson != null ? _parseRecommendation(recJson) : null,
