@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,6 +16,11 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
   final MarkChatAsReadUseCase markAsRead;
   final ChatListWsService wsService;
 
+  /// Single long-lived subscription to the merged room stream. Living in the
+  /// constructor (not inside an event handler) keeps real-time updates flowing
+  /// even after reset/reconnect — used by the global unread badge in the nav.
+  late final StreamSubscription<Map<String, dynamic>> _wsSub;
+
   ChatListBloc({
     required this.getRooms,
     required this.createRoom,
@@ -26,6 +32,10 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     on<ChatListRoomRead>(_onRoomRead);
     on<ChatListWsConnectRequested>(_onWsConnect, transformer: droppable());
     on<_ChatListWsMessageReceived>(_onWsMessage);
+    on<ChatListReset>(_onReset);
+    _wsSub = wsService.events.listen(
+      (data) => add(_ChatListWsMessageReceived(data)),
+    );
   }
 
   Future<void> _onLoad(ChatListLoadRequested event, Emitter<ChatListState> emit) async {
@@ -49,11 +59,14 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? '';
     if (token.isEmpty) return;
+    // The stream itself is consumed by [_wsSub] for the bloc's whole lifetime;
+    // here we only (re)open the per-room sockets.
     wsService.connectAll(event.roomIds, token);
-    await emit.onEach(
-      wsService.events,
-      onData: (data) => add(_ChatListWsMessageReceived(data)),
-    );
+  }
+
+  void _onReset(ChatListReset event, Emitter<ChatListState> emit) {
+    wsService.disconnect();
+    emit(ChatListInitial());
   }
 
   void _onWsMessage(_ChatListWsMessageReceived event, Emitter<ChatListState> emit) {
@@ -141,6 +154,7 @@ class ChatListBloc extends Bloc<ChatListEvent, ChatListState> {
 
   @override
   Future<void> close() {
+    _wsSub.cancel();
     wsService.disconnect();
     return super.close();
   }

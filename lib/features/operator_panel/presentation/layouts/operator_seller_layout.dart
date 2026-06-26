@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/utils/responsive_utils.dart';
 import '../../../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../../../features/operator_chat/presentation/bloc/chat_list_bloc.dart';
 import '../../../../core/notifications/badge_bloc.dart';
 import '../widgets/op_animated_sidebar.dart';
 
@@ -40,6 +41,10 @@ class OperatorSellerLayout extends StatelessWidget {
     context.go(_routes[index]);
   }
 
+  /// How many chats currently have unread messages (0 when not yet loaded).
+  static int _unreadChats(ChatListState state) =>
+      state is ChatListLoaded ? state.unreadRoomCount : 0;
+
   @override
   Widget build(BuildContext context) {
     final idx = _selectedIndex(context);
@@ -61,36 +66,39 @@ class OperatorSellerLayout extends StatelessWidget {
       body: Row(
         children: [
           BlocBuilder<BadgeBloc, BadgeState>(
-            builder: (_, badge) => OpAnimatedSidebar(
-              isAdmin: false,
-              selectedIndex: idx,
-              onItemTap: (i) => _navigate(i, context),
-              onLogout: () {
-                context.read<AuthBloc>().add(LogoutRequested());
-              },
-              items: [
-                const OpNavItem(
-                  icon: Icons.view_kanban_outlined,
-                  selectedIcon: Icons.view_kanban_rounded,
-                  label: 'Board',
-                ),
-                OpNavItem(
-                  icon: Icons.mail_outline_rounded,
-                  selectedIcon: Icons.mail_rounded,
-                  label: 'Arizalar',
-                  badgeCount: badge.newConsultations,
-                ),
-                const OpNavItem(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  selectedIcon: Icons.chat_bubble_rounded,
-                  label: 'Chat',
-                ),
-                const OpNavItem(
-                  icon: Icons.bar_chart_outlined,
-                  selectedIcon: Icons.bar_chart_rounded,
-                  label: 'Statistika',
-                ),
-              ],
+            builder: (_, badge) => BlocBuilder<ChatListBloc, ChatListState>(
+              builder: (_, chat) => OpAnimatedSidebar(
+                isAdmin: false,
+                selectedIndex: idx,
+                onItemTap: (i) => _navigate(i, context),
+                onLogout: () {
+                  context.read<AuthBloc>().add(LogoutRequested());
+                },
+                items: [
+                  const OpNavItem(
+                    icon: Icons.view_kanban_outlined,
+                    selectedIcon: Icons.view_kanban_rounded,
+                    label: 'Board',
+                  ),
+                  OpNavItem(
+                    icon: Icons.mail_outline_rounded,
+                    selectedIcon: Icons.mail_rounded,
+                    label: 'Arizalar',
+                    badgeCount: badge.newConsultations,
+                  ),
+                  OpNavItem(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    selectedIcon: Icons.chat_bubble_rounded,
+                    label: 'Chat',
+                    badgeCount: _unreadChats(chat),
+                  ),
+                  const OpNavItem(
+                    icon: Icons.bar_chart_outlined,
+                    selectedIcon: Icons.bar_chart_rounded,
+                    label: 'Statistika',
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(child: child),
@@ -134,39 +142,49 @@ class _MobileSellerLayout extends StatelessWidget {
       body: child,
       bottomNavigationBar: showBottomNav
           ? BlocBuilder<BadgeBloc, BadgeState>(
-              builder: (_, badge) => NavigationBar(
-                selectedIndex: selectedIndex,
-                onDestinationSelected: onNavigate,
-                backgroundColor: Colors.white,
-                indicatorColor: AppColors.primaryLight,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-                destinations: [
-                  const NavigationDestination(
-                    icon: Icon(Icons.view_kanban_outlined),
-                    selectedIcon: Icon(Icons.view_kanban_rounded),
-                    label: 'Board',
-                  ),
-                  NavigationDestination(
-                    icon: badge.newConsultations > 0
-                        ? Badge(
-                            label: Text('${badge.newConsultations}'),
-                            child: const Icon(Icons.mail_outline_rounded),
-                          )
-                        : const Icon(Icons.mail_outline_rounded),
-                    selectedIcon: const Icon(Icons.mail_rounded),
-                    label: 'Arizalar',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.chat_bubble_outline_rounded),
-                    selectedIcon: Icon(Icons.chat_bubble_rounded),
-                    label: 'Chat',
-                  ),
-                  const NavigationDestination(
-                    icon: Icon(Icons.bar_chart_outlined),
-                    selectedIcon: Icon(Icons.bar_chart_rounded),
-                    label: 'Statistika',
-                  ),
-                ],
+              builder: (_, badge) => BlocBuilder<ChatListBloc, ChatListState>(
+                builder: (_, chat) {
+                  final unreadChats = OperatorSellerLayout._unreadChats(chat);
+                  return NavigationBar(
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: onNavigate,
+                    backgroundColor: Colors.white,
+                    indicatorColor: AppColors.primaryLight,
+                    labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                    destinations: [
+                      const NavigationDestination(
+                        icon: Icon(Icons.view_kanban_outlined),
+                        selectedIcon: Icon(Icons.view_kanban_rounded),
+                        label: 'Board',
+                      ),
+                      NavigationDestination(
+                        icon: badge.newConsultations > 0
+                            ? Badge(
+                                label: Text('${badge.newConsultations}'),
+                                child: const Icon(Icons.mail_outline_rounded),
+                              )
+                            : const Icon(Icons.mail_outline_rounded),
+                        selectedIcon: const Icon(Icons.mail_rounded),
+                        label: 'Arizalar',
+                      ),
+                      NavigationDestination(
+                        icon: unreadChats > 0
+                            ? Badge(
+                                label: Text('$unreadChats'),
+                                child: const Icon(Icons.chat_bubble_outline_rounded),
+                              )
+                            : const Icon(Icons.chat_bubble_outline_rounded),
+                        selectedIcon: const Icon(Icons.chat_bubble_rounded),
+                        label: 'Chat',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.bar_chart_outlined),
+                        selectedIcon: Icon(Icons.bar_chart_rounded),
+                        label: 'Statistika',
+                      ),
+                    ],
+                  );
+                },
               ),
             )
           : null,

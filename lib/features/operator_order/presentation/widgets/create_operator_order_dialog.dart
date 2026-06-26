@@ -13,11 +13,16 @@ class CreateOperatorOrderDialog extends StatefulWidget {
   final int? recommendationId;
   final int? leadId;
 
+  /// When true the operator can type the client's phone inside the dialog —
+  /// used by the chat list app bar where there is no pre-selected client.
+  final bool editablePhone;
+
   const CreateOperatorOrderDialog({
     super.key,
-    required this.phone,
+    this.phone = '',
     this.recommendationId,
     this.leadId,
+    this.editablePhone = false,
   });
 
   @override
@@ -27,6 +32,7 @@ class CreateOperatorOrderDialog extends StatefulWidget {
 class _CreateOperatorOrderDialogState extends State<CreateOperatorOrderDialog> {
   final _notesCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
+  late final _phoneCtrl = TextEditingController(text: widget.phone);
 
   // Manual mode state
   final Map<int, int> _quantities = {};
@@ -48,6 +54,7 @@ class _CreateOperatorOrderDialogState extends State<CreateOperatorOrderDialog> {
   void dispose() {
     _notesCtrl.dispose();
     _searchCtrl.dispose();
+    _phoneCtrl.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -93,16 +100,21 @@ class _CreateOperatorOrderDialogState extends State<CreateOperatorOrderDialog> {
     }
   }
 
+  String get _phone => _phoneCtrl.text.trim();
+
+  bool get _phoneValid => _phone.length >= 9;
+
   bool get _canSubmit =>
-      _isManual ? _quantities.isNotEmpty : true;
+      _phoneValid && (_isManual ? _quantities.isNotEmpty : true);
 
   void _submit() {
+    if (!_phoneValid) return;
     final notes = _notesCtrl.text.trim();
     if (_isManual) {
       if (_quantities.isEmpty) return;
       context.read<OperatorOrderBloc>().add(
         OperatorOrderCreateManual(
-          phone: widget.phone,
+          phone: _phone,
           items: _quantities.entries
               .map((e) => OrderItemInput(productId: e.key, quantity: e.value))
               .toList(),
@@ -113,7 +125,7 @@ class _CreateOperatorOrderDialogState extends State<CreateOperatorOrderDialog> {
     } else {
       context.read<OperatorOrderBloc>().add(
         OperatorOrderCreateFromRecommendation(
-          phone: widget.phone,
+          phone: _phone,
           operatorRecommendationId: widget.recommendationId!,
           customerNotes: notes.isEmpty ? null : notes,
         ),
@@ -150,7 +162,9 @@ class _CreateOperatorOrderDialogState extends State<CreateOperatorOrderDialog> {
                 _DialogHeader(onClose: () => Navigator.of(ctx).pop()),
                 Flexible(child: _isManual ? _buildManualBody() : _buildRecommendationBody()),
                 _Footer(
-                  phone: widget.phone,
+                  phoneCtrl: _phoneCtrl,
+                  editablePhone: widget.editablePhone,
+                  onPhoneChanged: (_) => setState(() {}),
                   notesCtrl: _notesCtrl,
                   isCreating: isCreating,
                   canSubmit: _canSubmit,
@@ -490,7 +504,9 @@ class _StepBtn extends StatelessWidget {
 }
 
 class _Footer extends StatelessWidget {
-  final String phone;
+  final TextEditingController phoneCtrl;
+  final bool editablePhone;
+  final ValueChanged<String> onPhoneChanged;
   final TextEditingController notesCtrl;
   final bool isCreating;
   final bool canSubmit;
@@ -499,7 +515,9 @@ class _Footer extends StatelessWidget {
   final VoidCallback onCancel;
 
   const _Footer({
-    required this.phone,
+    required this.phoneCtrl,
+    required this.editablePhone,
+    required this.onPhoneChanged,
     required this.notesCtrl,
     required this.isCreating,
     required this.canSubmit,
@@ -516,25 +534,43 @@ class _Footer extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(8),
+          if (editablePhone)
+            TextField(
+              controller: phoneCtrl,
+              onChanged: onPhoneChanged,
+              keyboardType: TextInputType.phone,
+              enabled: !isCreating,
+              decoration: InputDecoration(
+                labelText: 'Mijoz telefoni *',
+                hintText: '998901234567',
+                helperText: 'Mijoz ilovada ro\'yxatdan o\'tgan bo\'lishi kerak',
+                helperStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.phone_rounded, size: 16, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(phoneCtrl.text,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+                  const Spacer(),
+                  const Text('Buyurtma kimga',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.phone_rounded, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 6),
-                Text(phone,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-                const Spacer(),
-                const Text('Buyurtma kimga',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
-              ],
-            ),
-          ),
           const SizedBox(height: 8),
           TextField(
             controller: notesCtrl,

@@ -25,6 +25,12 @@ class ChatListRoomRead extends ChatListEvent {
   List<Object?> get props => [roomId];
 }
 
+/// Clears the list and tears down the live sockets — dispatched on logout so
+/// the global instance doesn't keep a stale unread badge across sessions.
+class ChatListReset extends ChatListEvent {
+  const ChatListReset();
+}
+
 class ChatListWsConnectRequested extends ChatListEvent {
   final List<int> roomIds;
   const ChatListWsConnectRequested(this.roomIds);

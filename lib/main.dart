@@ -9,6 +9,7 @@ import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import 'features/dashboard/presentation/bloc/dashboard_bloc.dart';
 import 'features/consultations/presentation/bloc/consultations_bloc.dart';
+import 'features/operator_chat/presentation/bloc/chat_list_bloc.dart';
 import 'features/orders/data/datasources/order_remote_data_source.dart';
 
 void main() async {
@@ -35,6 +36,9 @@ class MehrigiyoCrmApp extends StatelessWidget {
             ordersDataSource: getIt<OrderRemoteDataSource>(),
           ),
         ),
+        // Global so the chat unread badge stays live on every screen, not just
+        // while the chat list page is open.
+        BlocProvider(create: (_) => getIt<ChatListBloc>()),
       ],
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
@@ -43,10 +47,14 @@ class MehrigiyoCrmApp extends StatelessWidget {
             if (state.user.isAdmin) {
               appRouter.go(RouteNames.adminLeads);
             } else {
+              // Sellers own chats — start streaming rooms so the nav badge is
+              // populated before the chat page is ever opened.
+              context.read<ChatListBloc>().add(const ChatListLoadRequested());
               appRouter.go(RouteNames.sellerKanban);
             }
           } else if (state is AuthUnauthenticated || state is AuthError) {
             context.read<BadgeBloc>().add(const ResetBadgeCounts());
+            context.read<ChatListBloc>().add(const ChatListReset());
             appRouter.go(RouteNames.login);
           }
         },

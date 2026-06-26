@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:web/web.dart' as web;
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/di/di_setup.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/bitrix_call_button.dart';
@@ -141,6 +142,7 @@ class ChatRoomPage extends StatefulWidget {
   final int roomId;
   final String? participantName;
   final String? participantPhone;
+  final String? avatarUrl;
   final int? leadId;
 
   const ChatRoomPage({
@@ -148,6 +150,7 @@ class ChatRoomPage extends StatefulWidget {
     required this.roomId,
     this.participantName,
     this.participantPhone,
+    this.avatarUrl,
     this.leadId,
   });
 
@@ -430,19 +433,29 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             final displayName = _resolveDisplayName(routeName, phone, loaded);
             final initial =
                 displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+            final avatarUrl = widget.avatarUrl;
+            final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
             return Row(
               children: [
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.accent.withValues(alpha: 0.25),
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
+                  backgroundImage: hasAvatar
+                      ? NetworkImage(ApiConstants.resolveMediaUrl(avatarUrl))
+                      : null,
+                  // Web blocks cross-origin canvas decode (CORS) → swallow the
+                  // failure so the initial letter stays as the fallback.
+                  onBackgroundImageError: hasAvatar ? (_, _) {} : null,
+                  child: hasAvatar
+                      ? null
+                      : Text(
+                          initial,
+                          style: const TextStyle(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

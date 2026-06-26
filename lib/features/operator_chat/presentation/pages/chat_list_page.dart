@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/di/di_setup.dart';
 import '../../../../core/router/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../operator_order/presentation/bloc/operator_order_bloc.dart';
+import '../../../operator_order/presentation/widgets/create_operator_order_dialog.dart';
+import '../../domain/usecases/chat_usecases.dart';
 import '../../domain/entities/chat_entities.dart';
 import '../bloc/chat_list_bloc.dart';
 import '../widgets/create_room_dialog.dart';
@@ -17,6 +21,17 @@ class ChatListPage extends StatefulWidget {
 class _ChatListPageState extends State<ChatListPage> {
   GoRouter? _router;
   String? _lastLocation;
+
+  @override
+  void initState() {
+    super.initState();
+    // The global bloc is normally loaded on login; guard covers the case where
+    // the page is opened before that ever happened (e.g. deep link / refresh).
+    final bloc = context.read<ChatListBloc>();
+    if (bloc.state is ChatListInitial) {
+      bloc.add(const ChatListLoadRequested());
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -54,6 +69,19 @@ class _ChatListPageState extends State<ChatListPage> {
     );
   }
 
+  void _showCreateOrderDialog(BuildContext ctx) {
+    showDialog(
+      context: ctx,
+      builder: (_) => MultiBlocProvider(
+        providers: [
+          BlocProvider(create: (_) => getIt<OperatorOrderBloc>()),
+          RepositoryProvider.value(value: getIt<SearchProductsUseCase>()),
+        ],
+        child: const CreateOperatorOrderDialog(editablePhone: true),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,6 +96,7 @@ class _ChatListPageState extends State<ChatListPage> {
               extra: {
                 'name': state.room.participantName,
                 'phone': state.room.participantPhone,
+                'avatarUrl': state.room.avatarUrl,
                 'leadId': state.room.leadId,
               },
             );
@@ -85,6 +114,7 @@ class _ChatListPageState extends State<ChatListPage> {
               children: [
                 _Header(
                   onNewChat: () => _showCreateDialog(ctx),
+                  onNewOrder: () => _showCreateOrderDialog(ctx),
                   onRefresh: () =>
                       ctx.read<ChatListBloc>().add(const ChatListLoadRequested()),
                 ),
@@ -100,8 +130,13 @@ class _ChatListPageState extends State<ChatListPage> {
 
 class _Header extends StatelessWidget {
   final VoidCallback onNewChat;
+  final VoidCallback onNewOrder;
   final VoidCallback onRefresh;
-  const _Header({required this.onNewChat, required this.onRefresh});
+  const _Header({
+    required this.onNewChat,
+    required this.onNewOrder,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +171,18 @@ class _Header extends StatelessWidget {
             tooltip: 'Yangilash',
           ),
           const SizedBox(width: 4),
+          OutlinedButton.icon(
+            onPressed: onNewOrder,
+            icon: const Icon(Icons.shopping_cart_outlined, size: 18),
+            label: const Text('Zakaz qilish'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: const BorderSide(color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(width: 8),
           FilledButton.icon(
             onPressed: onNewChat,
             icon: const Icon(Icons.add_rounded, size: 18),
@@ -215,6 +262,7 @@ class _RoomTile extends StatelessWidget {
           extra: {
             'name': room.participantName,
             'phone': room.participantPhone,
+            'avatarUrl': room.avatarUrl,
             'leadId': room.leadId,
           },
         );

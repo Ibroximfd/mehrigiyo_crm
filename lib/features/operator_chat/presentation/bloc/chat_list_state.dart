@@ -13,6 +13,10 @@ class ChatListLoading extends ChatListState {}
 class ChatListLoaded extends ChatListState {
   final List<ChatRoomEntity> rooms;
   const ChatListLoaded(this.rooms);
+
+  /// Number of chats that have at least one unread message — drives the nav badge.
+  int get unreadRoomCount => rooms.where((r) => r.unreadCount > 0).length;
+
   @override
   List<Object?> get props => [rooms];
 }

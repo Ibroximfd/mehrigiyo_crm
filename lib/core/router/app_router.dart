@@ -207,8 +207,10 @@ final GoRouter appRouter = GoRouter(
           pageBuilder: (ctx, state) => _pageTransition(
             ctx,
             state,
-            BlocProvider(
-              create: (_) => getIt<ChatListBloc>()..add(const ChatListLoadRequested()),
+            BlocProvider.value(
+              // Reuse the global instance (provided in main.dart) so the chat
+              // list shares state with the live nav unread badge.
+              value: ctx.read<ChatListBloc>(),
               child: const ChatListPage(),
             ),
           ),
@@ -231,6 +233,7 @@ final GoRouter appRouter = GoRouter(
             final extra = state.extra as Map<String, dynamic>?;
             final name = extra?['name'] as String?;
             final phone = extra?['phone'] as String?;
+            final avatarUrl = extra?['avatarUrl'] as String?;
             final leadId = extra?['leadId'] as int?;
             return _slidePage(
               ctx,
@@ -244,6 +247,7 @@ final GoRouter appRouter = GoRouter(
                   roomId: id,
                   participantName: name,
                   participantPhone: phone,
+                  avatarUrl: avatarUrl,
                   leadId: leadId,
                 ),
               ),
