@@ -33,6 +33,7 @@ class LeadsByStatusChart extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: _StatusRow(
               status: item.status,
+              category: item.category,
               count: item.count,
               percent: percent,
               color: color,
@@ -60,12 +61,14 @@ class LeadsByStatusChart extends StatelessWidget {
 
 class _StatusRow extends StatelessWidget {
   final String status;
+  final String category;
   final int count;
   final double percent;
   final Color color;
 
   const _StatusRow({
     required this.status,
+    required this.category,
     required this.count,
     required this.percent,
     required this.color,
@@ -73,6 +76,7 @@ class _StatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPostSale = category == 'post_sale';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -80,16 +84,47 @@ class _StatusRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Flexible(
-              child: Text(
-                status,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF1E293B),
-                ),
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      status,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF1E293B),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (category.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: isPostSale
+                            ? const Color(0xFFECFEFF)
+                            : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isPostSale ? 'Sotuvdan keyin' : 'Sotuv',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: isPostSale
+                              ? const Color(0xFF0891B2)
+                              : const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               '$count (${(percent * 100).toStringAsFixed(0)}%)',
               style: TextStyle(

@@ -22,7 +22,7 @@ class SellerStatisticsBloc
   ) async {
     final period = state is SellerStatisticsLoaded
         ? (state as SellerStatisticsLoaded).period
-        : 'all';
+        : 'today';
     emit(SellerStatisticsLoading(period: period));
     final result = await _getMyStats(period: period);
     result.fold(

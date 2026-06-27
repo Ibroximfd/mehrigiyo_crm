@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/utils/money_format.dart';
 import '../bloc/statistics_bloc.dart';
 import '../widgets/period_selector.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/leads_by_status_chart.dart';
+import '../widgets/order_pipeline_card.dart';
 import '../../domain/entities/statistics_entity.dart';
 
 class SellerStatisticsPage extends StatelessWidget {
@@ -19,7 +21,7 @@ class SellerStatisticsPage extends StatelessWidget {
             SellerStatisticsLoaded s => s.period,
             SellerStatisticsLoading s => s.period,
             SellerStatisticsError s => s.period,
-            _ => 'all',
+            _ => 'today',
           };
 
           return RefreshIndicator(
@@ -95,10 +97,21 @@ class _SellerStatsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = data.commission;
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
+          if (data.operator != null) ...[
+            _OperatorHero(
+              operator: data.operator!,
+              // Hero shows order-level total (jarayondagini ham qo'shadi),
+              // fall back to item-level sotuv summasi.
+              amount: data.orderPipeline?.totalAmount ?? data.sales.totalSales,
+              label: data.orderPipeline != null ? 'Jami buyurtma' : 'Jami sotuv',
+            ),
+            const SizedBox(height: 22),
+          ],
           _SectionTitle('Sotuvlar'),
           const SizedBox(height: 10),
           Row(
@@ -115,20 +128,26 @@ class _SellerStatsContent extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: StatCard(
-                  icon: Icons.attach_money_rounded,
+                  icon: Icons.payments_outlined,
                   iconColor: const Color(0xFF2563EB),
                   bgColor: const Color(0xFFEFF6FF),
                   label: 'Jami sotuv',
-                  value: _formatMoney(data.sales.totalSales),
+                  value: formatSom(data.sales.totalSales),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          if (data.orderPipeline != null) ...[
+            const SizedBox(height: 22),
+            _SectionTitle('Buyurtmalar'),
+            const SizedBox(height: 10),
+            OrderPipelineCard(pipeline: data.orderPipeline!),
+          ],
+          const SizedBox(height: 22),
           _SectionTitle('Komissiya'),
           const SizedBox(height: 10),
-          _CommissionCards(commission: data.commission),
-          const SizedBox(height: 20),
+          _CommissionCards(commission: c),
+          const SizedBox(height: 22),
           _SectionTitle('Leadlar'),
           const SizedBox(height: 10),
           Row(
@@ -139,28 +158,207 @@ class _SellerStatsContent extends StatelessWidget {
                   iconColor: const Color(0xFF7C3AED),
                   bgColor: const Color(0xFFF5F3FF),
                   label: 'Jami lead',
-                  value: '${data.leads.total}',
+                  value: '${data.leads.total} ta',
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: StatCard(
-                  icon: Icons.trending_up_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  bgColor: const Color(0xFFFFFBEB),
-                  label: 'Konversiya',
-                  value: '${data.leads.conversion.toStringAsFixed(1)}%',
+                  icon: Icons.repeat_rounded,
+                  iconColor: const Color(0xFF0891B2),
+                  bgColor: const Color(0xFFECFEFF),
+                  label: 'Sotuvdan keyingi',
+                  value: '${data.leads.postSaleLeads} ta',
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          _ConversionCard(percent: data.leads.conversion),
           if (data.leads.byStatus.isNotEmpty) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
             _SectionTitle('Leadlar holati bo\'yicha'),
             const SizedBox(height: 10),
             LeadsByStatusChart(byStatus: data.leads.byStatus),
           ],
         ]),
+      ),
+    );
+  }
+}
+
+class _OperatorHero extends StatelessWidget {
+  final OperatorInfoEntity operator;
+  final double amount;
+  final String label;
+  const _OperatorHero({
+    required this.operator,
+    required this.amount,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initial =
+        operator.fullName.isNotEmpty ? operator.fullName[0].toUpperCase() : '?';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0D6A55), Color(0xFF14B8A6)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0D6A55).withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      operator.fullName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${operator.username}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            formatSom(amount),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConversionCard extends StatelessWidget {
+  final double percent;
+  const _ConversionCard({required this.percent});
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = (percent / 100).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.trending_up_rounded,
+                    size: 20, color: Color(0xFFD97706)),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Konversiya',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                ),
+              ),
+              Text(
+                '${trimZero(percent)}%',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E293B),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFF1F5F9),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Color(0xFFD97706)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -178,12 +376,11 @@ class _CommissionCards extends StatelessWidget {
           children: [
             Expanded(
               child: StatCard(
-                icon: Icons.check_circle_outline_rounded,
+                icon: Icons.savings_outlined,
                 iconColor: const Color(0xFF16A34A),
                 bgColor: const Color(0xFFDCFCE7),
-                label: 'Hisoblangan',
-                value: _formatMoney(commission.totalPaid),
-                subtitle: '${commission.countPaid} ta',
+                label: 'Jami topilgan',
+                value: formatSom(commission.earned),
               ),
             ),
             const SizedBox(width: 12),
@@ -193,35 +390,21 @@ class _CommissionCards extends StatelessWidget {
                 iconColor: const Color(0xFFD97706),
                 bgColor: const Color(0xFFFFFBEB),
                 label: 'Kutilmoqda',
-                value: _formatMoney(commission.totalPending),
-                subtitle: '${commission.countPending} ta',
+                value: formatSom(commission.pendingPayout),
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: StatCard(
-                icon: Icons.account_balance_wallet_outlined,
-                iconColor: const Color(0xFF2563EB),
-                bgColor: const Color(0xFFEFF6FF),
-                label: "To'lab berilgan",
-                value: _formatMoney(commission.totalTransferred),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StatCard(
-                icon: Icons.cancel_outlined,
-                iconColor: const Color(0xFFDC2626),
-                bgColor: const Color(0xFFFEE2E2),
-                label: 'Bekor qilingan',
-                value: _formatMoney(commission.totalCancelled),
-              ),
-            ),
-          ],
+        SizedBox(
+          width: double.infinity,
+          child: StatCard(
+            icon: Icons.account_balance_wallet_outlined,
+            iconColor: const Color(0xFF2563EB),
+            bgColor: const Color(0xFFEFF6FF),
+            label: "To'lab berilgan",
+            value: formatSom(commission.transferred),
+          ),
         ),
       ],
     );
@@ -244,16 +427,6 @@ class _SectionTitle extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatMoney(double amount) {
-  if (amount >= 1000000) {
-    return '${(amount / 1000000).toStringAsFixed(1)} mln';
-  }
-  if (amount >= 1000) {
-    return '${(amount / 1000).toStringAsFixed(0)} ming';
-  }
-  return amount.toStringAsFixed(0);
 }
 
 class _ErrorView extends StatelessWidget {
