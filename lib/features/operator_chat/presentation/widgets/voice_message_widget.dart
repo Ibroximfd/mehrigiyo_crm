@@ -4,15 +4,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/audio_waveform.dart';
 import '../bloc/audio/audio_bloc.dart';
 import '../bloc/audio/audio_event.dart';
 import '../bloc/audio/audio_state.dart';
 
-/// Telegram-style inline voice message: a play/pause button, a seekable
-/// progress bar and a duration label, all inside the chat bubble. Playback is
-/// driven entirely by [AudioBloc] (single active audio for the whole screen),
-/// so this is a pure [StatelessWidget].
-class VoiceMessageWidget extends StatelessWidget {
+/// Telegram-style inline voice message: a play/pause button, an amplitude
+/// waveform that reflects the recording's actual rhythm, and a duration label —
+/// all inside the chat bubble. Playback is driven by [AudioBloc] (a single
+/// active audio for the whole screen).
+///
+/// The waveform + true duration are decoded from the audio bytes via the Web
+/// Audio API ([AudioWaveform]). If that fails (e.g. CORS) it degrades to a
+/// deterministic pseudo-waveform so the bubble still looks right and playback
+/// keeps working.
+class VoiceMessageWidget extends StatefulWidget {
   final int messageId;
   final String url;
   final bool isMine;
@@ -26,44 +32,85 @@ class VoiceMessageWidget extends StatelessWidget {
     this.fileName,
   });
 
-  String get _resolvedUrl => ApiConstants.resolveMediaUrl(url);
+  @override
+  State<VoiceMessageWidget> createState() => _VoiceMessageWidgetState();
+}
+
+class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
+  String get _resolvedUrl => ApiConstants.resolveMediaUrl(widget.url);
+
+  WaveformData? _waveform;
+  late List<double> _bars;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fallback bars are stable per message, so the shape doesn't change once
+    // the real waveform decodes in.
+    _bars = AudioWaveform.pseudoBars(widget.messageId);
+    _waveform = AudioWaveform.cachedOf(_resolvedUrl);
+    if (_waveform != null) _bars = _waveform!.bars;
+    _loadWaveform();
+  }
+
+  @override
+  void didUpdateWidget(VoiceMessageWidget old) {
+    super.didUpdateWidget(old);
+    if (old.url != widget.url || old.messageId != widget.messageId) {
+      _bars = AudioWaveform.pseudoBars(widget.messageId);
+      _waveform = AudioWaveform.cachedOf(_resolvedUrl);
+      if (_waveform != null) _bars = _waveform!.bars;
+      _loadWaveform();
+    }
+  }
+
+  Future<void> _loadWaveform() async {
+    if (_waveform != null) return;
+    final url = _resolvedUrl;
+    if (url.isEmpty) return;
+    final data = await AudioWaveform.load(url);
+    if (!mounted || data == null) return;
+    setState(() {
+      _waveform = data;
+      _bars = data.bars;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final pending = _resolvedUrl.isEmpty;
+    final isMine = widget.isMine;
 
     return RepaintBoundary(
       child: BlocSelector<AudioBloc, AudioState, _VoiceUiState>(
-        selector: (state) => _select(state, messageId),
+        selector: (state) => _select(state, widget.messageId),
         builder: (context, ui) {
-          // Colors adapt to bubble side.
           final accent = isMine ? Colors.white : AppColors.primary;
           final onAccent = isMine ? AppColors.primary : Colors.white;
           final trackColor = isMine
-              ? Colors.white.withValues(alpha: 0.30)
-              : const Color(0xFFD1FAE5);
+              ? Colors.white.withValues(alpha: 0.32)
+              : const Color(0xFFB9E8D7);
 
-          final total = ui.duration;
+          // Prefer the decoded duration (reliable for webm); fall back to what
+          // the player reports.
+          final decoded = _waveform?.durationSeconds;
+          final total = (decoded != null && decoded > 0)
+              ? Duration(milliseconds: (decoded * 1000).round())
+              : ui.duration;
           final pos = ui.position;
           final isActive = ui.status == _PlayStatus.playing ||
               ui.status == _PlayStatus.paused;
 
-          // webm recordings from MediaRecorder carry no duration header, so the
-          // browser reports it as 0/Infinity. Treat anything outside a sane
-          // range as "unknown" and fall back to an elapsed-time view.
-          final hasDuration =
-              total.inMilliseconds > 0 && total.inHours < 24;
-
+          final hasDuration = total.inMilliseconds > 0 && total.inHours < 24;
           final progress = hasDuration
               ? (pos.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0)
-              : null; // null → indeterminate bar while playing
+              : 0.0;
 
-          // With a known length: remaining while active, total at rest.
-          // Without one: just count elapsed seconds up.
           final String label;
           if (ui.status == _PlayStatus.error) {
             label = 'Xatolik';
           } else if (hasDuration) {
+            // Count remaining while playing, show total length at rest.
             label = _fmt(isActive ? (total - pos) : total);
           } else if (isActive) {
             label = _fmt(pos);
@@ -72,9 +119,9 @@ class VoiceMessageWidget extends StatelessWidget {
           }
 
           return ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
+            constraints: const BoxConstraints(minWidth: 240, maxWidth: 290),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 12, 6),
+              padding: const EdgeInsets.fromLTRB(10, 10, 12, 8),
               child: Row(
                 children: [
                   _PlayButton(
@@ -82,9 +129,7 @@ class VoiceMessageWidget extends StatelessWidget {
                     accent: accent,
                     onAccent: onAccent,
                     pending: pending,
-                    onTap: pending
-                        ? null
-                        : () => _onTap(context, ui.status),
+                    onTap: pending ? null : () => _onTap(context, ui.status),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -92,17 +137,16 @@ class VoiceMessageWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _ProgressBar(
-                          // Indeterminate while playing an unknown-length clip.
-                          progress: progress ??
-                              (ui.status == _PlayStatus.playing ? null : 0.0),
-                          accent: accent,
+                        _Waveform(
+                          bars: _bars,
+                          progress: progress,
+                          playedColor: accent,
                           trackColor: trackColor,
                           enabled: isActive && hasDuration,
                           onSeek: (fraction) =>
                               context.read<AudioBloc>().add(
                                     AudioSeekRequested(
-                                      messageId: messageId,
+                                      messageId: widget.messageId,
                                       position: Duration(
                                         milliseconds:
                                             (total.inMilliseconds * fraction)
@@ -116,6 +160,7 @@ class VoiceMessageWidget extends StatelessWidget {
                           label,
                           style: TextStyle(
                             fontSize: 11,
+                            fontWeight: FontWeight.w500,
                             color: isMine
                                 ? Colors.white70
                                 : const Color(0xFF94A3B8),
@@ -136,9 +181,12 @@ class VoiceMessageWidget extends StatelessWidget {
   void _onTap(BuildContext context, _PlayStatus status) {
     final bloc = context.read<AudioBloc>();
     if (status == _PlayStatus.playing) {
-      bloc.add(AudioPauseRequested(messageId));
+      bloc.add(AudioPauseRequested(widget.messageId));
     } else {
-      bloc.add(AudioPlayRequested(messageId: messageId, audioUrl: _resolvedUrl));
+      bloc.add(AudioPlayRequested(
+        messageId: widget.messageId,
+        audioUrl: _resolvedUrl,
+      ));
     }
   }
 
@@ -219,11 +267,11 @@ class _PlayButton extends StatelessWidget {
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: SizedBox(
-          width: 36,
-          height: 36,
+          width: 38,
+          height: 38,
           child: showSpinner
               ? Padding(
-                  padding: const EdgeInsets.all(9),
+                  padding: const EdgeInsets.all(10),
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: onAccent,
@@ -234,7 +282,7 @@ class _PlayButton extends StatelessWidget {
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                   color: onAccent,
-                  size: 22,
+                  size: 24,
                 ),
         ),
       ),
@@ -242,17 +290,21 @@ class _PlayButton extends StatelessWidget {
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  /// null → indeterminate (unknown-length clip while playing).
-  final double? progress;
-  final Color accent;
+/// Seekable amplitude waveform. Bars left of [progress] use [playedColor], the
+/// rest [trackColor]. Dragging/tapping reports the tapped fraction via [onSeek]
+/// when [enabled].
+class _Waveform extends StatelessWidget {
+  final List<double> bars;
+  final double progress;
+  final Color playedColor;
   final Color trackColor;
   final bool enabled;
   final ValueChanged<double> onSeek;
 
-  const _ProgressBar({
+  const _Waveform({
+    required this.bars,
     required this.progress,
-    required this.accent,
+    required this.playedColor,
     required this.trackColor,
     required this.enabled,
     required this.onSeek,
@@ -263,25 +315,21 @@ class _ProgressBar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        void seek(double dx) => onSeek((dx / width).clamp(0.0, 1.0));
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTapDown: enabled
-              ? (d) => onSeek((d.localPosition.dx / width).clamp(0.0, 1.0))
-              : null,
-          onHorizontalDragUpdate: enabled
-              ? (d) => onSeek((d.localPosition.dx / width).clamp(0.0, 1.0))
-              : null,
+          onTapDown: enabled ? (d) => seek(d.localPosition.dx) : null,
+          onHorizontalDragUpdate:
+              enabled ? (d) => seek(d.localPosition.dx) : null,
           child: SizedBox(
-            height: 14,
-            child: Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 4,
-                  backgroundColor: trackColor,
-                  valueColor: AlwaysStoppedAnimation<Color>(accent),
-                ),
+            height: 30,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _WaveformPainter(
+                bars: bars,
+                progress: progress,
+                playedColor: playedColor,
+                trackColor: trackColor,
               ),
             ),
           ),
@@ -289,4 +337,50 @@ class _ProgressBar extends StatelessWidget {
       },
     );
   }
+}
+
+class _WaveformPainter extends CustomPainter {
+  final List<double> bars;
+  final double progress;
+  final Color playedColor;
+  final Color trackColor;
+
+  _WaveformPainter({
+    required this.bars,
+    required this.progress,
+    required this.playedColor,
+    required this.trackColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = bars.length;
+    if (n == 0) return;
+
+    const gap = 2.0;
+    final barW = ((size.width - gap * (n - 1)) / n).clamp(1.5, 4.0);
+    const minH = 3.0;
+    final progressX = size.width * progress;
+    final paint = Paint()..style = PaintingStyle.fill;
+    final radius = Radius.circular(barW / 2);
+
+    for (var i = 0; i < n; i++) {
+      final x = i * (barW + gap);
+      final h = (minH + bars[i] * (size.height - minH)).clamp(minH, size.height);
+      final top = (size.height - h) / 2;
+      final centerX = x + barW / 2;
+      paint.color = centerX <= progressX ? playedColor : trackColor;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(x, top, barW, h), radius),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) =>
+      old.progress != progress ||
+      old.playedColor != playedColor ||
+      old.trackColor != trackColor ||
+      !identical(old.bars, bars);
 }

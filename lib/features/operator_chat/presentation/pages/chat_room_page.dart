@@ -9,7 +9,7 @@ import 'package:web/web.dart' as web;
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/di/di_setup.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/bitrix_call_button.dart';
+import '../../../../core/utils/bitrix_helper.dart';
 import '../../../operator_chat/domain/usecases/chat_usecases.dart';
 import '../../../operator_order/presentation/bloc/operator_order_bloc.dart';
 import '../../../operator_order/presentation/widgets/create_operator_order_dialog.dart';
@@ -527,25 +527,39 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           },
         ),
         actions: [
-          if (phone.isNotEmpty) ...[
-            BitrixCallButton(phone: phone, size: 40),
-            const SizedBox(width: 4),
-          ],
-          BlocBuilder<ChatRoomBloc, ChatRoomState>(
-            buildWhen: (p, s) =>
-                (p is ChatRoomLoaded ? p.isSending : false) !=
-                (s is ChatRoomLoaded ? s.isSending : false),
-            builder: (ctx, state) {
-              final isSending = state is ChatRoomLoaded && state.isSending;
-              return IconButton(
-                onPressed: isSending ? null : () => _openManualOrder(ctx),
-                icon: const Icon(Icons.shopping_bag_outlined),
-                tooltip: 'Buyurtma yaratish',
-                color: Colors.white,
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 12, left: 8),
+            child: BlocBuilder<ChatRoomBloc, ChatRoomState>(
+              buildWhen: (p, s) =>
+                  (p is ChatRoomLoaded ? p.isSending : false) !=
+                  (s is ChatRoomLoaded ? s.isSending : false),
+              builder: (ctx, state) {
+                final isSending = state is ChatRoomLoaded && state.isSending;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (phone.isNotEmpty) ...[
+                      _HeaderActionButton(
+                        icon: Icons.call_rounded,
+                        label: 'Qo\'ng\'iroq',
+                        color: const Color(0xFF4ADE80),
+                        tooltip: 'Bitrix24 orqali qo\'ng\'iroq qilish',
+                        onTap: () => launchBitrixCall(phone),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    _HeaderActionButton(
+                      icon: Icons.add_shopping_cart_rounded,
+                      label: 'Buyurtma',
+                      color: const Color(0xFFFBBF24),
+                      tooltip: 'Buyurtma yaratish',
+                      onTap: isSending ? null : () => _openManualOrder(ctx),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-          const SizedBox(width: 4),
         ],
       ),
       body: BlocConsumer<ChatRoomBloc, ChatRoomState>(
@@ -682,6 +696,62 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+// ─── Header action button (call / order) ──────────────────────────────────────
+
+/// Compact labelled pill used in the dark chat header. A coloured icon + label
+/// on a translucent tint of the same colour — readable on the dark AppBar and
+/// clearly tappable, unlike a bare icon. Dims when [onTap] is null.
+class _HeaderActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _HeaderActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final fg = enabled ? color : color.withValues(alpha: 0.4);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color.withValues(alpha: enabled ? 0.16 : 0.06),
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: fg),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
