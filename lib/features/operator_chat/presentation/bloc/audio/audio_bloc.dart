@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../../../../core/utils/web_media.dart';
 import 'audio_event.dart';
 import 'audio_state.dart';
 
@@ -19,6 +20,10 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
 
   /// The message whose audio is currently loaded in [_player].
   int? _currentId;
+
+  /// The `blob:` URL backing the currently loaded clip, if we downloaded it.
+  /// Revoked when a new clip loads or the bloc closes to free memory.
+  String? _blobUrl;
 
   AudioBloc() : super(const AudioIdleState()) {
     on<AudioPlayRequested>(_onPlay, transformer: droppable());
@@ -69,7 +74,7 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
           position: _player.position,
           duration: paused.duration,
         ));
-        _startPlayback(event.messageId);
+        _startPlayback();
         return;
       }
 
@@ -77,56 +82,68 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
       if (_currentId != event.messageId) {
         _currentId = event.messageId;
         emit(AudioLoadingState(event.messageId));
-        debugPrint('[CHAT-DEBUG] AudioBloc.setUrl id=${event.messageId} '
-            'url=${event.audioUrl}');
 
-        // WEB AUTOPLAY: the browser only allows play() while a user gesture is
-        // still "active". Awaiting setUrl (a network round-trip) ends that
-        // gesture, so a play() afterwards is blocked (NotAllowedError) on sites
-        // with low media-engagement (i.e. production, but not localhost). To
-        // keep the gesture alive we kick off the load and call play() in the
-        // SAME synchronous turn — before any await. setUrl replaces the current
-        // source on its own, so the explicit stop()/seek() are not needed.
-        final loadFuture = _player.setUrl(event.audioUrl);
-        _startPlayback(event.messageId);
+        // Download the clip and play it from an in-memory blob: URL instead of
+        // letting the <audio> element stream the remote file. Streaming uses
+        // HTTP range requests that the deployed build's service worker
+        // intercepts and stalls forever (works under `flutter run`, which has
+        // no service worker). Voice clips are small, so a one-shot download is
+        // cheap and robust. Falls back to the direct URL if the fetch fails.
+        final blob = await fetchAsBlobUrl(event.audioUrl)
+            .timeout(const Duration(seconds: 20), onTimeout: () => null);
+        // A newer tap may have superseded us while downloading.
+        if (_currentId != event.messageId) {
+          if (blob != null) revokeBlobUrl(blob);
+          return;
+        }
 
-        final loaded = await loadFuture;
-        debugPrint('[CHAT-DEBUG] AudioBloc.setUrl OK id=${event.messageId} '
-            'duration=$loaded');
-        // Still the active message? (a newer tap may have superseded us.)
+        final String playUrl;
+        if (blob != null) {
+          _revokeBlob();
+          _blobUrl = blob;
+          playUrl = blob;
+        } else {
+          // Fetch failed (e.g. CORS) — fall back to streaming the remote URL.
+          playUrl = event.audioUrl;
+        }
+
+        final loaded = await _player.setUrl(playUrl);
         if (_currentId != event.messageId) return;
         emit(AudioPlayingState(
           messageId: event.messageId,
-          position: _player.position,
+          position: Duration.zero,
           duration: loaded ?? _player.duration ?? Duration.zero,
         ));
+        _startPlayback();
       } else {
         emit(AudioPlayingState(
           messageId: event.messageId,
           position: _player.position,
           duration: _player.duration ?? Duration.zero,
         ));
-        _startPlayback(event.messageId);
+        _startPlayback();
       }
-    } catch (e, st) {
-      debugPrint('[CHAT-DEBUG] AudioBloc PLAY ERROR id=${event.messageId} '
-          'url=${event.audioUrl}\n  error=$e\n  $st');
+    } catch (e) {
       _currentId = null;
       emit(AudioErrorState(messageId: event.messageId, error: e.toString()));
     }
   }
 
-  /// Fire-and-forget play with diagnostics. On web, `play()` rejects with a
-  /// NotAllowedError when the browser's autoplay policy blocks playback (the
-  /// user gesture was consumed by the awaited setUrl). We log that so the cause
-  /// is visible instead of silently swallowed.
-  void _startPlayback(int messageId) {
-    _player.play().then((_) {
-      debugPrint('[CHAT-DEBUG] play() finished id=$messageId '
-          'pos=${_player.position} playing=${_player.playing}');
-    }).catchError((e) {
-      debugPrint('[CHAT-DEBUG] play() REJECTED id=$messageId error=$e');
-    });
+  /// Frees the currently held blob: URL (if any).
+  void _revokeBlob() {
+    final b = _blobUrl;
+    if (b != null) {
+      revokeBlobUrl(b);
+      _blobUrl = null;
+    }
+  }
+
+  /// Fire-and-forget play. We never await the [AudioPlayer.play] future because
+  /// it only completes when playback *finishes* (awaiting it would freeze the UI
+  /// on the loading state). Errors (e.g. a browser autoplay-policy rejection) are
+  /// swallowed rather than surfaced, since they don't affect the loaded state.
+  void _startPlayback() {
+    _player.play().catchError((_) {});
   }
 
   Future<void> _onPause(
@@ -214,6 +231,7 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
     WidgetsBinding.instance.removeObserver(this);
     _posSub?.cancel();
     _stateSub?.cancel();
+    _revokeBlob();
     _player.dispose();
     return super.close();
   }
