@@ -67,9 +67,18 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   Future<void> _loadWaveform() async {
     if (_waveform != null) return;
     final url = _resolvedUrl;
+    debugPrint('[CHAT-DEBUG] Voice id=${widget.messageId} '
+        'rawUrl=${widget.url}\n  resolvedUrl=$url');
     if (url.isEmpty) return;
     final data = await AudioWaveform.load(url);
-    if (!mounted || data == null) return;
+    if (!mounted) return;
+    if (data == null) {
+      debugPrint('[CHAT-DEBUG] Voice id=${widget.messageId} '
+          'waveform decode FAILED (CORS/fetch?) for $url');
+      return;
+    }
+    debugPrint('[CHAT-DEBUG] Voice id=${widget.messageId} '
+        'waveform OK dur=${data.durationSeconds}s bars=${data.bars.length}');
     setState(() {
       _waveform = data;
       _bars = data.bars;

@@ -69,22 +69,35 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
           position: _player.position,
           duration: paused.duration,
         ));
-        unawaited(_player.play());
+        _startPlayback(event.messageId);
         return;
       }
 
-      // A different (or fresh) message → stop current and BUFFER the new source.
-      // The loading spinner shows only during this download/buffer step.
+      // A different (or fresh) message → buffer the new source and play.
       if (_currentId != event.messageId) {
-        await _player.stop();
         _currentId = event.messageId;
         emit(AudioLoadingState(event.messageId));
-        final loaded = await _player.setUrl(event.audioUrl);
-        await _player.seek(Duration.zero);
-        // Media is buffered now → switch straight to the play/pause UI.
+        debugPrint('[CHAT-DEBUG] AudioBloc.setUrl id=${event.messageId} '
+            'url=${event.audioUrl}');
+
+        // WEB AUTOPLAY: the browser only allows play() while a user gesture is
+        // still "active". Awaiting setUrl (a network round-trip) ends that
+        // gesture, so a play() afterwards is blocked (NotAllowedError) on sites
+        // with low media-engagement (i.e. production, but not localhost). To
+        // keep the gesture alive we kick off the load and call play() in the
+        // SAME synchronous turn — before any await. setUrl replaces the current
+        // source on its own, so the explicit stop()/seek() are not needed.
+        final loadFuture = _player.setUrl(event.audioUrl);
+        _startPlayback(event.messageId);
+
+        final loaded = await loadFuture;
+        debugPrint('[CHAT-DEBUG] AudioBloc.setUrl OK id=${event.messageId} '
+            'duration=$loaded');
+        // Still the active message? (a newer tap may have superseded us.)
+        if (_currentId != event.messageId) return;
         emit(AudioPlayingState(
           messageId: event.messageId,
-          position: Duration.zero,
+          position: _player.position,
           duration: loaded ?? _player.duration ?? Duration.zero,
         ));
       } else {
@@ -93,17 +106,27 @@ class AudioBloc extends Bloc<AudioEvent, AudioState>
           position: _player.position,
           duration: _player.duration ?? Duration.zero,
         ));
+        _startPlayback(event.messageId);
       }
-
-      // CRITICAL: AudioPlayer.play() returns a Future that completes only when
-      // playback *finishes* (or is paused/stopped). Awaiting it would freeze the
-      // UI on the loading state while the audio plays in the background — exactly
-      // the bug we're fixing. So fire-and-forget it.
-      unawaited(_player.play());
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[CHAT-DEBUG] AudioBloc PLAY ERROR id=${event.messageId} '
+          'url=${event.audioUrl}\n  error=$e\n  $st');
       _currentId = null;
       emit(AudioErrorState(messageId: event.messageId, error: e.toString()));
     }
+  }
+
+  /// Fire-and-forget play with diagnostics. On web, `play()` rejects with a
+  /// NotAllowedError when the browser's autoplay policy blocks playback (the
+  /// user gesture was consumed by the awaited setUrl). We log that so the cause
+  /// is visible instead of silently swallowed.
+  void _startPlayback(int messageId) {
+    _player.play().then((_) {
+      debugPrint('[CHAT-DEBUG] play() finished id=$messageId '
+          'pos=${_player.position} playing=${_player.playing}');
+    }).catchError((e) {
+      debugPrint('[CHAT-DEBUG] play() REJECTED id=$messageId error=$e');
+    });
   }
 
   Future<void> _onPause(

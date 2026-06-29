@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/chat_entities.dart';
 
 class ChatRoomModel extends ChatRoomEntity {
@@ -119,6 +121,16 @@ class ChatMessageModel extends ChatMessageEntity {
         messageType: replyRaw['message_type']?.toString() ?? 'text',
         isMine: replyRaw['is_mine'] as bool? ?? false,
       );
+    }
+
+    // ── TEMP DEBUG: trace how media (esp. audio) messages arrive from backend ──
+    final isMedia = msgType != 'text' && msgType != 'operator_recommendation';
+    if (isMedia || attachments.isNotEmpty) {
+      debugPrint('[CHAT-DEBUG] msg id=${json['id']} type=$msgType '
+          'keys=${json.keys.toList()}');
+      debugPrint('[CHAT-DEBUG]   raw=$json');
+      debugPrint('[CHAT-DEBUG]   parsed attachments='
+          '${attachments.map((a) => '{type:${a.fileType}, url:${a.url}}').toList()}');
     }
 
     return ChatMessageModel(

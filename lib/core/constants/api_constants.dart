@@ -63,5 +63,21 @@ class ApiConstants {
   static String adminOperatorStats(int operatorId) =>
       '/operator/admin/operators/$operatorId/stats/';
 
-  static String resolveMediaUrl(String url) => url;
+  /// Normalizes a media URL coming from the backend so it loads on the deployed
+  /// HTTPS site. The backend sometimes returns `http://` absolute URLs (when the
+  /// reverse proxy doesn't forward the original scheme) or relative paths; both
+  /// fail as `<audio>`/`<img>` sources on an HTTPS page (mixed content). We:
+  ///   • upgrade `http://` → `https://` (kills mixed-content blocking),
+  ///   • turn protocol-relative `//host/..` into `https://host/..`,
+  ///   • resolve relative `/media/..` against the current page origin.
+  static String resolveMediaUrl(String url) {
+    final u = url.trim();
+    if (u.isEmpty) return u;
+    if (u.startsWith('https://')) return u;
+    if (u.startsWith('http://')) return 'https://${u.substring(7)}';
+    if (u.startsWith('//')) return 'https:$u';
+    // Relative path → resolve against the page origin (same host that serves
+    // the app, which is also where media lives in production).
+    return Uri.base.resolve(u).toString();
+  }
 }
