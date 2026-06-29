@@ -318,6 +318,33 @@ class ChatRoomBloc extends Bloc<ChatRoomEvent, ChatRoomState> {
       return;
     }
 
+    // Real-time read receipt — mark our sent messages as read
+    if (type == 'messages_read' || type == 'message_read' ||
+        type == 'read_receipt' || type == 'read') {
+      final ids = <int>{};
+      final msgIds = data['message_ids'];
+      if (msgIds is List) {
+        for (final id in msgIds) {
+          if (id is int) ids.add(id);
+        }
+      }
+      final msgId = data['message_id'];
+      if (msgId is int) ids.add(msgId);
+      final lastReadId = data['last_read_id'];
+      if (lastReadId is int) {
+        for (final m in cur.messages) {
+          if (m.isMine && m.id <= lastReadId) ids.add(m.id);
+        }
+      }
+      if (ids.isNotEmpty) {
+        final updated = cur.messages.map((m) {
+          return (m.isMine && ids.contains(m.id)) ? m.copyWith(isRead: true) : m;
+        }).toList();
+        emit(cur.copyWith(messages: updated));
+      }
+      return;
+    }
+
     // Handle both { "type": "new_message", "message": {...} } and direct message format
     final msgData = data['message'] as Map<String, dynamic>? ??
         (data.containsKey('id') ? data : null);

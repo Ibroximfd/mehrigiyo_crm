@@ -20,8 +20,14 @@ void _registerViewFactory(String viewId, web.HTMLElement Function() builder) {
 class MessageBubble extends StatelessWidget {
   final ChatMessageEntity message;
   final VoidCallback? onReply;
+  final void Function(int replyId)? onReplyTap;
 
-  const MessageBubble({super.key, required this.message, this.onReply});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.onReply,
+    this.onReplyTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,9 +38,9 @@ class MessageBubble extends StatelessWidget {
         rec: message.recommendation!,
       );
     } else if (message.hasMedia) {
-      bubble = _MediaBubble(message: message);
+      bubble = _MediaBubble(message: message, onReplyTap: onReplyTap);
     } else {
-      bubble = _TextBubble(message: message);
+      bubble = _TextBubble(message: message, onReplyTap: onReplyTap);
     }
 
     return GestureDetector(onDoubleTap: onReply, child: bubble);
@@ -46,7 +52,8 @@ class MessageBubble extends StatelessWidget {
 class _ReplyPreview extends StatelessWidget {
   final ChatMessageReply reply;
   final bool isMine;
-  const _ReplyPreview({required this.reply, required this.isMine});
+  final VoidCallback? onTap;
+  const _ReplyPreview({required this.reply, required this.isMine, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -63,19 +70,22 @@ class _ReplyPreview extends StatelessWidget {
       preview = reply.text.isNotEmpty ? reply.text : '📎 Media';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: accent, width: 3)),
-      ),
-      child: Text(
-        preview,
-        style: TextStyle(fontSize: 12, color: textColor, height: 1.3),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: accent, width: 3)),
+        ),
+        child: Text(
+          preview,
+          style: TextStyle(fontSize: 12, color: textColor, height: 1.3),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
@@ -85,7 +95,8 @@ class _ReplyPreview extends StatelessWidget {
 
 class _TextBubble extends StatelessWidget {
   final ChatMessageEntity message;
-  const _TextBubble({required this.message});
+  final void Function(int)? onReplyTap;
+  const _TextBubble({required this.message, this.onReplyTap});
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +130,11 @@ class _TextBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (message.replyTo != null)
-              _ReplyPreview(reply: message.replyTo!, isMine: isMine),
+              _ReplyPreview(
+                reply: message.replyTo!,
+                isMine: isMine,
+                onTap: onReplyTap != null ? () => onReplyTap!(message.replyTo!.id) : null,
+              ),
             if (message.text.isNotEmpty)
               Text(
                 message.text,
@@ -147,7 +162,8 @@ class _TextBubble extends StatelessWidget {
 
 class _MediaBubble extends StatelessWidget {
   final ChatMessageEntity message;
-  const _MediaBubble({required this.message});
+  final void Function(int)? onReplyTap;
+  const _MediaBubble({required this.message, this.onReplyTap});
 
   @override
   Widget build(BuildContext context) {
@@ -189,7 +205,11 @@ class _MediaBubble extends StatelessWidget {
               if (message.replyTo != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                  child: _ReplyPreview(reply: message.replyTo!, isMine: isMine),
+                  child: _ReplyPreview(
+                    reply: message.replyTo!,
+                    isMine: isMine,
+                    onTap: onReplyTap != null ? () => onReplyTap!(message.replyTo!.id) : null,
+                  ),
                 ),
               // If attachments parsed, show them; else show fallback card from message_type
               if (message.attachments.isNotEmpty)

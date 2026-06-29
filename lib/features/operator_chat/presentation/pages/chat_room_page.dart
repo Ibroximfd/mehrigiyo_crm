@@ -163,6 +163,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   final _textCtrl = TextEditingController();
   final _focusNode = FocusNode();
   final _voiceRecorder = _WebVoiceRecorder();
+  final _messageKeys = <int, GlobalKey>{};
+  final _highlightedId = ValueNotifier<int?>(null);
+  final _showScrollBtn = ValueNotifier<bool>(false);
 
   bool _isRecording = false;
   int _recordingSeconds = 0;
@@ -175,16 +178,34 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     _scrollCtrl.addListener(_onScroll);
   }
 
+  GlobalKey _keyFor(int msgId) =>
+      _messageKeys.putIfAbsent(msgId, () => GlobalKey());
+
   void _onScroll() {
     if (!_scrollCtrl.hasClients) return;
-    // reverse:true → the TOP (older messages) is at the END of the scroll range.
     final pos = _scrollCtrl.position;
+    _showScrollBtn.value = pos.pixels > 200;
     if (pos.pixels >= pos.maxScrollExtent - 150) {
       final s = context.read<ChatRoomBloc>().state;
       if (s is ChatRoomLoaded && s.hasOlderMessages && !s.isLoadingMore) {
         context.read<ChatRoomBloc>().add(const ChatRoomLoadMoreRequested());
       }
     }
+  }
+
+  Future<void> _scrollToReply(int msgId) async {
+    final key = _messageKeys[msgId];
+    if (key?.currentContext == null) return;
+    await Scrollable.ensureVisible(
+      key!.currentContext!,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      alignment: 0.5,
+    );
+    _highlightedId.value = msgId;
+    Future.delayed(const Duration(milliseconds: 1800), () {
+      if (mounted && _highlightedId.value == msgId) _highlightedId.value = null;
+    });
   }
 
   @override
@@ -194,6 +215,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     _focusNode.dispose();
     _recordingTimer?.cancel();
     _voiceRecorder.cancel();
+    _highlightedId.dispose();
+    _showScrollBtn.dispose();
     super.dispose();
   }
 
@@ -626,47 +649,73 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             children: [
               // Messages list
               Expanded(
-                child: state.messages.isEmpty
-                    ? const _EmptyChat()
-                    : SelectionArea(
-                        child: ListView.builder(
-                          controller: _scrollCtrl,
-                          // Newest at the bottom; the list opens pinned there.
-                          reverse: true,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          itemCount:
-                              state.messages.length +
-                              (state.isLoadingMore ? 1 : 0),
-                          itemBuilder: (_, i) {
-                            // i == 0 is the bottom (newest). Map into the ASC list
-                            // from the end.
-                            if (i < state.messages.length) {
-                              final msg = state
-                                  .messages[state.messages.length - 1 - i];
-                              return MessageBubble(
-                                message: msg,
-                                onReply: () => ctx.read<ChatRoomBloc>().add(
-                                  ChatRoomReplySet(msg),
-                                ),
-                              );
-                            }
-                            // Last item while paginating → spinner at the top.
-                            return const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: state.messages.isEmpty
+                          ? const _EmptyChat()
+                          : SelectionArea(
+                              child: ListView.builder(
+                                controller: _scrollCtrl,
+                                reverse: true,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                itemCount:
+                                    state.messages.length +
+                                    (state.isLoadingMore ? 1 : 0),
+                                itemBuilder: (_, i) {
+                                  if (i < state.messages.length) {
+                                    final msg = state
+                                        .messages[state.messages.length - 1 - i];
+                                    return _HighlightWrapper(
+                                      key: _keyFor(msg.id),
+                                      messageId: msg.id,
+                                      notifier: _highlightedId,
+                                      child: MessageBubble(
+                                        message: msg,
+                                        onReply: () => ctx.read<ChatRoomBloc>().add(
+                                          ChatRoomReplySet(msg),
+                                        ),
+                                        onReplyTap: msg.replyTo != null
+                                            ? _scrollToReply
+                                            : null,
+                                      ),
+                                    );
+                                  }
+                                  return const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          },
+                            ),
+                    ),
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: ValueListenableBuilder<bool>(
+                        valueListenable: _showScrollBtn,
+                        builder: (_, show, child) => AnimatedOpacity(
+                          opacity: show ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 200),
+                          child: IgnorePointer(
+                            ignoring: !show,
+                            child: child!,
+                          ),
                         ),
+                        child: _ScrollToBottomBtn(onTap: _scrollToBottom),
                       ),
+                    ),
+                  ],
+                ),
               ),
               // Reply bar
               if (state.replyToMessage != null)
@@ -1043,6 +1092,103 @@ class _InputBar extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Highlight wrapper (Telegram-style reply scroll animation) ────────────────
+
+class _HighlightWrapper extends StatefulWidget {
+  final int messageId;
+  final ValueListenable<int?> notifier;
+  final Widget child;
+
+  const _HighlightWrapper({
+    required super.key,
+    required this.messageId,
+    required this.notifier,
+    required this.child,
+  });
+
+  @override
+  State<_HighlightWrapper> createState() => _HighlightWrapperState();
+}
+
+class _HighlightWrapperState extends State<_HighlightWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Color?> _color;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _color = ColorTween(
+      begin: const Color(0xFFFEF08A),
+      end: Colors.transparent,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    widget.notifier.addListener(_onNotify);
+  }
+
+  void _onNotify() {
+    if (widget.notifier.value == widget.messageId) {
+      _ctrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.notifier.removeListener(_onNotify);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _color,
+      builder: (_, child) => ColoredBox(
+        color: _color.value ?? Colors.transparent,
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+// ─── Scroll to bottom button ──────────────────────────────────────────────────
+
+class _ScrollToBottomBtn extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ScrollToBottomBtn({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: AppColors.primary,
+          size: 26,
+        ),
       ),
     );
   }

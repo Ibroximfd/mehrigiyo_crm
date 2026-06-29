@@ -82,6 +82,19 @@ class ChatMessageEntity extends Equatable {
   bool get hasMedia => attachments.isNotEmpty
       || const {'image', 'video', 'audio', 'voice', 'file'}.contains(messageType);
 
+  ChatMessageEntity copyWith({bool? isRead}) => ChatMessageEntity(
+    id: id,
+    messageType: messageType,
+    text: text,
+    isMine: isMine,
+    isRead: isRead ?? this.isRead,
+    senderName: senderName,
+    replyTo: replyTo,
+    attachments: attachments,
+    recommendation: recommendation,
+    createdAt: createdAt,
+  );
+
   @override
   List<Object?> get props =>
       [id, messageType, text, isMine, isRead, senderName, replyTo, attachments, recommendation, createdAt];
