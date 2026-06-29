@@ -184,7 +184,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   void _onScroll() {
     if (!_scrollCtrl.hasClients) return;
     final pos = _scrollCtrl.position;
-    _showScrollBtn.value = pos.pixels > 200;
+    _showScrollBtn.value = pos.pixels > 300;
     if (pos.pixels >= pos.maxScrollExtent - 150) {
       final s = context.read<ChatRoomBloc>().state;
       if (s is ChatRoomLoaded && s.hasOlderMessages && !s.isLoadingMore) {
@@ -426,7 +426,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     final phone = widget.participantPhone ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0FAF7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: AppColors.sidebarDark,
         foregroundColor: Colors.white,
@@ -1125,6 +1125,7 @@ class _HighlightWrapperState extends State<_HighlightWrapper>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
+      value: 1.0, // start at end (transparent), not beginning (yellow)
       duration: const Duration(milliseconds: 1500),
     );
     _color = ColorTween(
@@ -1168,26 +1169,38 @@ class _ScrollToBottomBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+    return Tooltip(
+      message: 'Eng oxirgi xabarga o\'tish',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: const Icon(
-          Icons.keyboard_arrow_down_rounded,
-          color: AppColors.primary,
-          size: 26,
+            child: const Icon(
+              Icons.keyboard_double_arrow_down_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
         ),
       ),
     );
