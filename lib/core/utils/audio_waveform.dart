@@ -43,12 +43,26 @@ class AudioWaveform {
         _decode(url).whenComplete(() => _inflight.remove(url));
   }
 
+  /// One shared AudioContext for all decodes. Browsers cap the number of live
+  /// AudioContexts (~6 in Chrome); creating one per voice message — they all
+  /// decode at once on screen entry — quickly hits that cap and throws. Reusing
+  /// a single context avoids the limit. Created lazily, never closed.
+  static web.AudioContext? _sharedCtx;
+
+  static web.AudioContext? _ctx() {
+    try {
+      return _sharedCtx ??= web.AudioContext();
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<WaveformData?> _decode(String url) async {
-    web.AudioContext? ctx;
     try {
       final resp = await _fetch(url.toJS).toDart;
       final buffer = await resp.arrayBuffer().toDart;
-      ctx = web.AudioContext();
+      final ctx = _ctx();
+      if (ctx == null) return null;
       final audio = await ctx.decodeAudioData(buffer).toDart;
       final channel = audio.getChannelData(0).toDart;
       final data = WaveformData(audio.duration, _downsample(channel, barCount));
@@ -56,10 +70,6 @@ class AudioWaveform {
       return data;
     } catch (_) {
       return null;
-    } finally {
-      try {
-        ctx?.close();
-      } catch (_) {}
     }
   }
 
