@@ -15,7 +15,7 @@ class ChatWsService {
 
   static String _wsUrl(int roomId, String token) {
     if (kIsWeb && !kDebugMode) return '/ws/chat/$roomId/?token=$token';
-    return 'wss://imorganic.uz/ws/chat/$roomId/?token=$token';
+    return 'wss://my.imorganic.uz/ws/chat/$roomId/?token=$token';
   }
 
   void connect(int roomId, String token) {

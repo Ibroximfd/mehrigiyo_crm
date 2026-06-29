@@ -14,7 +14,7 @@ class OperatorWsService {
 
   static String _wsUrl(String token) {
     if (kIsWeb && !kDebugMode) return '/ws/operator/?token=$token';
-    return 'wss://imorganic.uz/ws/operator/?token=$token';
+    return 'wss://my.imorganic.uz/ws/operator/?token=$token';
   }
 
   void connect(String token) {

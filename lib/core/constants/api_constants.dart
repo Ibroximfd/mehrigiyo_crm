@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 
 class ApiConstants {
   static String get baseUrl {
-    // Production web (deployed on imorganic.uz): use relative path
+    // Production web (deployed on my.imorganic.uz): use relative path
     // Debug web (localhost dev): use full URL
     if (kIsWeb && !kDebugMode) return '/api';
-    return 'https://imorganic.uz/api';
+    return 'https://my.imorganic.uz/api';
   }
 
   // Support auth (existing)
