@@ -13,7 +13,7 @@ class OperatorWsService {
   Stream<Map<String, dynamic>> get events => _ctrl.stream;
 
   static String _wsUrl(String token) {
-    if (kIsWeb && !kDebugMode) return '/ws/operator/?token=$token';
+    if (kIsWeb && !kDebugMode) return 'wss://${Uri.base.host}/ws/operator/?token=$token';
     return 'wss://my.imorganic.uz/ws/operator/?token=$token';
   }
 

@@ -16,7 +16,7 @@ class ChatListWsService {
   Stream<Map<String, dynamic>> get events => _ctrl.stream;
 
   static String _wsUrl(int roomId, String token) {
-    if (kIsWeb && !kDebugMode) return '/ws/chat/$roomId/?token=$token';
+    if (kIsWeb && !kDebugMode) return 'wss://${Uri.base.host}/ws/chat/$roomId/?token=$token';
     return 'wss://my.imorganic.uz/ws/chat/$roomId/?token=$token';
   }
 
