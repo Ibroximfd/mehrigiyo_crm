@@ -171,11 +171,18 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   int _recordingSeconds = 0;
   Timer? _recordingTimer;
 
+  // True while an automated scroll (jump-to-reply) is running, so the scroll
+  // listener doesn't fire load-more and shift indices mid-animation.
+  bool _autoScrolling = false;
+
   @override
   void initState() {
     super.initState();
     context.read<ChatRoomBloc>().add(ChatRoomLoadRequested(widget.roomId));
     _scrollCtrl.addListener(_onScroll);
+    // Suppress the browser's native right-click menu so our own per-message
+    // context menu is the only one shown.
+    if (kIsWeb) BrowserContextMenu.disableContextMenu();
   }
 
   GlobalKey _keyFor(int msgId) =>
@@ -185,6 +192,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     if (!_scrollCtrl.hasClients) return;
     final pos = _scrollCtrl.position;
     _showScrollBtn.value = pos.pixels > 300;
+    if (_autoScrolling) return;
     if (pos.pixels >= pos.maxScrollExtent - 150) {
       final s = context.read<ChatRoomBloc>().state;
       if (s is ChatRoomLoaded && s.hasOlderMessages && !s.isLoadingMore) {
@@ -193,23 +201,95 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     }
   }
 
+  /// Scrolls to the original message a reply points at and flashes it.
+  ///
+  /// In a lazy `ListView.builder` an off-screen message isn't built, so its key
+  /// has no context and `ensureVisible` alone can't reach it. We first try the
+  /// fast path (already built), then estimate the target's offset in the
+  /// reverse list, jump close enough to force it to build, and center it
+  /// precisely — repeating since item heights vary.
   Future<void> _scrollToReply(int msgId) async {
-    final key = _messageKeys[msgId];
-    if (key?.currentContext == null) return;
-    await Scrollable.ensureVisible(
-      key!.currentContext!,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      alignment: 0.5,
-    );
+    if (!_scrollCtrl.hasClients) return;
+    final state = context.read<ChatRoomBloc>().state;
+    if (state is! ChatRoomLoaded) return;
+
+    final msgIndex = state.messages.indexWhere((m) => m.id == msgId);
+    if (msgIndex == -1) {
+      // Target is older than the loaded window — can't locate it without paging.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Eski xabar — yuqoriga scroll qilib yuklang'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    Future<bool> centerIfBuilt() async {
+      final ctx = _messageKeys[msgId]?.currentContext;
+      if (ctx == null) return false;
+      await Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
+      return true;
+    }
+
+    _autoScrolling = true;
+    try {
+      // Fast path: the target is already built (in viewport or cache extent).
+      if (await centerIfBuilt()) {
+        _flashHighlight(msgId);
+        return;
+      }
+
+      // reverse:true → display index 0 is the newest (bottom); older messages
+      // sit at higher indices / larger scroll offsets.
+      final total = state.messages.length;
+      final displayIndex = total - 1 - msgIndex;
+      for (var attempt = 0; attempt < 12 && mounted; attempt++) {
+        if (!_scrollCtrl.hasClients) return;
+        final pos = _scrollCtrl.position;
+        final avg = (total > 1 && pos.maxScrollExtent > 0)
+            ? (pos.maxScrollExtent / (total - 1)).clamp(24.0, 600.0)
+            : 80.0;
+        final target = (displayIndex * avg).clamp(0.0, pos.maxScrollExtent);
+        _scrollCtrl.jumpTo(target);
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+        if (await centerIfBuilt()) {
+          _flashHighlight(msgId);
+          return;
+        }
+      }
+    } finally {
+      _autoScrolling = false;
+    }
+  }
+
+  void _flashHighlight(int msgId) {
     _highlightedId.value = msgId;
     Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted && _highlightedId.value == msgId) _highlightedId.value = null;
     });
   }
 
+  /// Sets the message being replied to and immediately focuses the input so the
+  /// operator can start typing without clicking the field first.
+  void _setReply(ChatMessageEntity msg) {
+    context.read<ChatRoomBloc>().add(ChatRoomReplySet(msg));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
+    if (kIsWeb) BrowserContextMenu.enableContextMenu();
     _scrollCtrl.dispose();
     _textCtrl.dispose();
     _focusNode.dispose();
@@ -655,6 +735,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                       child: state.messages.isEmpty
                           ? const _EmptyChat()
                           : SelectionArea(
+                              // Suppress the selection toolbar so right-click
+                              // shows our per-message menu, not the copy popup.
+                              contextMenuBuilder: (_, _) =>
+                                  const SizedBox.shrink(),
                               child: ListView.builder(
                                 controller: _scrollCtrl,
                                 reverse: true,
@@ -672,9 +756,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                       notifier: _highlightedId,
                                       child: MessageBubble(
                                         message: msg,
-                                        onReply: () => ctx.read<ChatRoomBloc>().add(
-                                          ChatRoomReplySet(msg),
-                                        ),
+                                        onReply: () => _setReply(msg),
                                         onReplyTap: msg.replyTo != null
                                             ? _scrollToReply
                                             : null,

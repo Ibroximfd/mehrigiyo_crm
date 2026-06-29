@@ -17,6 +17,8 @@ void _registerViewFactory(String viewId, web.HTMLElement Function() builder) {
   ui.platformViewRegistry.registerViewFactory(viewId, (_) => builder());
 }
 
+enum _MsgMenuAction { reply, copy }
+
 class MessageBubble extends StatelessWidget {
   final ChatMessageEntity message;
   final VoidCallback? onReply;
@@ -28,6 +30,61 @@ class MessageBubble extends StatelessWidget {
     this.onReply,
     this.onReplyTap,
   });
+
+  /// Opens a small context menu (Reply / Copy) anchored at [globalPos].
+  /// Triggered by right-click (secondary tap) on desktop/web and long-press on
+  /// touch — replacing the old double-tap-to-reply gesture.
+  Future<void> _showContextMenu(BuildContext context, Offset globalPos) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    final hasText = message.text.trim().isNotEmpty;
+    final selected = await showMenu<_MsgMenuAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPos & const Size(1, 1),
+        Offset.zero & overlay.size,
+      ),
+      color: Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        const PopupMenuItem(
+          value: _MsgMenuAction.reply,
+          height: 44,
+          child: Row(
+            children: [
+              Icon(Icons.reply_rounded, size: 18, color: AppColors.primary),
+              SizedBox(width: 10),
+              Text('Javob berish', style: TextStyle(fontSize: 14)),
+            ],
+          ),
+        ),
+        if (hasText)
+          const PopupMenuItem(
+            value: _MsgMenuAction.copy,
+            height: 44,
+            child: Row(
+              children: [
+                Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                SizedBox(width: 10),
+                Text('Nusxalash', style: TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    switch (selected) {
+      case _MsgMenuAction.reply:
+        onReply?.call();
+      case _MsgMenuAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.text));
+      case null:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +100,12 @@ class MessageBubble extends StatelessWidget {
       bubble = _TextBubble(message: message, onReplyTap: onReplyTap);
     }
 
-    return GestureDetector(onDoubleTap: onReply, child: bubble);
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onSecondaryTapDown: (d) => _showContextMenu(context, d.globalPosition),
+      onLongPressStart: (d) => _showContextMenu(context, d.globalPosition),
+      child: bubble,
+    );
   }
 }
 
