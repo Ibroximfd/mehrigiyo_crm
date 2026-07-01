@@ -4,4 +4,4 @@
 ///
 /// Replace with the real company portal, e.g. 'mehrigiyo.bitrix24.com'.
 /// Kept in a single place so the call URL is never hardcoded elsewhere.
-const String kBitrixDomain = 'yourcompany.bitrix24.com';
+const String kBitrixDomain = 'mehrigiyo.bitrix24.kz';
