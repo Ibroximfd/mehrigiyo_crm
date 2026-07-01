@@ -79,17 +79,15 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
   @override
   Widget build(BuildContext context) {
     final pending = _resolvedUrl.isEmpty;
-    final isMine = widget.isMine;
-
     return RepaintBoundary(
       child: BlocSelector<AudioBloc, AudioState, _VoiceUiState>(
         selector: (state) => _select(state, widget.messageId),
         builder: (context, ui) {
-          final accent = isMine ? Colors.white : AppColors.primary;
-          final onAccent = isMine ? AppColors.primary : Colors.white;
-          final trackColor = isMine
-              ? Colors.white.withValues(alpha: 0.32)
-              : const Color(0xFFB9E8D7);
+          // Both bubbles now have a light background (mine = light green,
+          // theirs = white), so voice controls use the same green accents.
+          const accent = AppColors.primary;
+          const onAccent = Colors.white;
+          const trackColor = Color(0xFFB9E8D7);
 
           // Prefer the decoded duration (reliable for webm); fall back to what
           // the player reports.
@@ -158,12 +156,10 @@ class _VoiceMessageWidgetState extends State<VoiceMessageWidget> {
                         const SizedBox(height: 6),
                         Text(
                           label,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: isMine
-                                ? Colors.white70
-                                : const Color(0xFF94A3B8),
+                            color: Color(0xFF94A3B8),
                           ),
                         ),
                       ],

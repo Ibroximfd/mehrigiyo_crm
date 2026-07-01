@@ -15,6 +15,7 @@ import '../../../operator_order/presentation/bloc/operator_order_bloc.dart';
 import '../../../operator_order/presentation/widgets/create_operator_order_dialog.dart';
 import '../../domain/entities/chat_entities.dart';
 import '../bloc/chat_room_bloc.dart';
+import '../widgets/chat_wallpaper.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/recommend_products_sheet.dart';
 
@@ -145,6 +146,10 @@ class ChatRoomPage extends StatefulWidget {
   final String? avatarUrl;
   final int? leadId;
 
+  /// When true the page is rendered inside the desktop master-detail right
+  /// panel, so it drops the back button (there is no route to pop).
+  final bool embedded;
+
   const ChatRoomPage({
     super.key,
     required this.roomId,
@@ -152,6 +157,7 @@ class ChatRoomPage extends StatefulWidget {
     this.participantPhone,
     this.avatarUrl,
     this.leadId,
+    this.embedded = false,
   });
 
   @override
@@ -511,12 +517,15 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         backgroundColor: AppColors.sidebarDark,
         foregroundColor: Colors.white,
         elevation: 0,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => context.pop(),
-          color: Colors.white,
-        ),
+        titleSpacing: widget.embedded ? 16 : 0,
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => context.pop(),
+                color: Colors.white,
+              ),
         title: BlocBuilder<ChatRoomBloc, ChatRoomState>(
           buildWhen: (p, s) {
             final po = p is ChatRoomLoaded;
@@ -562,8 +571,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: SelectionArea(
-                    child: Column(
+                  // NOTE: no SelectionArea here. Flutter 3.44 allows only one
+                  // SelectionArea per route; the messages list owns it (so text
+                  // can be copied). The phone has its own copy button.
+                  child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -623,7 +634,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                         ),
                       ],
                     ),
-                  ),
                 ),
               ],
             );
@@ -731,6 +741,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
               Expanded(
                 child: Stack(
                   children: [
+                    const Positioned.fill(child: ChatWallpaper()),
                     Positioned.fill(
                       child: state.messages.isEmpty
                           ? const _EmptyChat()
@@ -748,9 +759,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                     (state.isLoadingMore ? 1 : 0),
                                 itemBuilder: (_, i) {
                                   if (i < state.messages.length) {
-                                    final msg = state
-                                        .messages[state.messages.length - 1 - i];
-                                    return _HighlightWrapper(
+                                    final r = state.messages.length - 1 - i;
+                                    final msg = state.messages[r];
+                                    final bubble = _HighlightWrapper(
                                       key: _keyFor(msg.id),
                                       messageId: msg.id,
                                       notifier: _highlightedId,
@@ -761,6 +772,19 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
                                             ? _scrollToReply
                                             : null,
                                       ),
+                                    );
+                                    // Show a date pill above the first message
+                                    // of each day (r-1 is the older neighbour).
+                                    final showDate = r == 0 ||
+                                        !_sameDay(state.messages[r - 1].createdAt,
+                                            msg.createdAt);
+                                    if (!showDate) return bubble;
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _DateSeparator(iso: msg.createdAt),
+                                        bubble,
+                                      ],
                                     );
                                   }
                                   return const Padding(
@@ -1281,6 +1305,73 @@ class _ScrollToBottomBtn extends StatelessWidget {
               Icons.keyboard_double_arrow_down_rounded,
               color: Colors.white,
               size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Date separator ───────────────────────────────────────────────────────────
+
+bool _sameDay(String isoA, String isoB) {
+  try {
+    final a = DateTime.parse(isoA).toLocal();
+    final b = DateTime.parse(isoB).toLocal();
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  } catch (_) {
+    return true; // on parse failure, don't insert a stray separator
+  }
+}
+
+/// Telegram-style centered date pill on a translucent dark background.
+class _DateSeparator extends StatelessWidget {
+  final String iso;
+  const _DateSeparator({required this.iso});
+
+  static const _months = [
+    'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+    'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr',
+  ];
+
+  String get _label {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final that = DateTime(dt.year, dt.month, dt.day);
+      final diff = today.difference(that).inDays;
+      if (diff == 0) return 'Bugun';
+      if (diff == 1) return 'Kecha';
+      final month = _months[dt.month - 1];
+      return dt.year == now.year
+          ? '${dt.day} $month'
+          : '${dt.day} $month ${dt.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _label;
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
             ),
           ),
         ),

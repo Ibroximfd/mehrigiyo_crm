@@ -17,6 +17,16 @@ void _registerViewFactory(String viewId, web.HTMLElement Function() builder) {
   ui.platformViewRegistry.registerViewFactory(viewId, (_) => builder());
 }
 
+// ─── Telegram bubble palette ──────────────────────────────────────────────────
+// Both bubbles are light now: mine = soft green, theirs = white. Text is dark
+// on both; only the meta row (time + ticks) differs slightly for "mine".
+const Color _kMyBubble = Color(0xFFDCF8C6);
+const Color _kTheirBubble = Colors.white;
+const Color _kBubbleText = Color(0xFF1E293B);
+const Color _kMyMeta = Color(0xFF6F9C6A); // muted green for time on my bubble
+const Color _kTheirMeta = Color(0xFF94A3B8);
+const Color _kReadTick = Color(0xFF34B7F1); // Telegram blue "seen"
+
 enum _MsgMenuAction { reply, copy }
 
 class MessageBubble extends StatelessWidget {
@@ -120,10 +130,10 @@ class _ReplyPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = isMine
-        ? Colors.white.withValues(alpha: 0.18)
+        ? AppColors.primary.withValues(alpha: 0.10)
         : AppColors.primaryLight;
-    final accent = isMine ? Colors.white70 : AppColors.primary;
-    final textColor = isMine ? Colors.white70 : const Color(0xFF475569);
+    const accent = AppColors.primary;
+    const textColor = Color(0xFF475569);
 
     String preview;
     if (reply.messageType == 'operator_recommendation') {
@@ -172,7 +182,7 @@ class _TextBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMine ? AppColors.primary : Colors.white,
+          color: isMine ? _kMyBubble : _kTheirBubble,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -200,8 +210,8 @@ class _TextBubble extends StatelessWidget {
             if (message.text.isNotEmpty)
               Text(
                 message.text,
-                style: TextStyle(
-                  color: isMine ? Colors.white : const Color(0xFF1E293B),
+                style: const TextStyle(
+                  color: _kBubbleText,
                   fontSize: 14,
                   height: 1.4,
                 ),
@@ -238,7 +248,7 @@ class _MediaBubble extends StatelessWidget {
         ),
         margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
         decoration: BoxDecoration(
-          color: isMine ? AppColors.primary : Colors.white,
+          color: isMine ? _kMyBubble : _kTheirBubble,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(18),
             topRight: const Radius.circular(18),
@@ -296,8 +306,8 @@ class _MediaBubble extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
                   child: Text(
                     message.text,
-                    style: TextStyle(
-                      color: isMine ? Colors.white : const Color(0xFF1E293B),
+                    style: const TextStyle(
+                      color: _kBubbleText,
                       fontSize: 14,
                     ),
                   ),
@@ -446,8 +456,8 @@ class _MediaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ic = iconColor ?? (isMine ? Colors.white70 : AppColors.primary);
-    final bg = bgColor ?? (isMine ? Colors.white12 : AppColors.primaryLight);
+    final ic = iconColor ?? AppColors.primary;
+    final bg = bgColor ?? AppColors.primaryLight;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -468,19 +478,19 @@ class _MediaCard extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: isMine ? Colors.white : const Color(0xFF1E293B),
+                      color: _kBubbleText,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
                   Text(
                     isPending ? 'Yuklanmoqda...' : 'Ochish uchun bosing',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 10,
-                      color: isMine ? Colors.white54 : const Color(0xFF94A3B8),
+                      color: Color(0xFF94A3B8),
                     ),
                   ),
                 ],
@@ -488,19 +498,19 @@ class _MediaCard extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             if (isPending)
-              SizedBox(
+              const SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 1.5,
-                  color: isMine ? Colors.white38 : const Color(0xFFCBD5E1),
+                  color: Color(0xFFCBD5E1),
                 ),
               )
             else
-              Icon(
+              const Icon(
                 Icons.open_in_new_rounded,
                 size: 14,
-                color: isMine ? Colors.white38 : const Color(0xFFCBD5E1),
+                color: Color(0xFFCBD5E1),
               ),
           ],
         ),
@@ -525,25 +535,25 @@ class _TimeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isMine ? Colors.white70 : const Color(0xFF94A3B8);
+    final color = isMine ? _kMyMeta : _kTheirMeta;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(_fmt(createdAt), style: TextStyle(fontSize: 10, color: color)),
         if (isMine) ...[
-          const SizedBox(width: 4),
+          const SizedBox(width: 3),
           Icon(
             isPending
                 ? Icons.access_time_rounded
                 : isRead
                 ? Icons.done_all_rounded
                 : Icons.done_rounded,
-            size: 13,
+            size: 14,
             color: isPending
-                ? Colors.white38
+                ? const Color(0xFF9AA0A6)
                 : isRead
-                ? const Color(0xFF34D399)
-                : Colors.white54,
+                ? _kReadTick
+                : _kMyMeta,
           ),
         ],
       ],
