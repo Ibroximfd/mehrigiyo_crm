@@ -5,7 +5,7 @@ class ApiConstants {
     // Production web (deployed on my.imorganic.uz): use relative path
     // Debug web (localhost dev): use full URL
     if (kIsWeb && !kDebugMode) return '/api';
-    return 'https://imorganic.uz/api';
+    return 'https://my.imorganic.uz/api';
   }
 
   // Support auth (existing)
