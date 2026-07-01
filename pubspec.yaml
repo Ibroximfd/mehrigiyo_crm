@@ -30,6 +30,7 @@ dependencies:
   url_launcher: ^6.3.0
   just_audio: ^0.9.40
   just_audio_web: ^0.4.14
+  flutter_colorpicker: ^1.1.0
 
 dev_dependencies:
   flutter_test:

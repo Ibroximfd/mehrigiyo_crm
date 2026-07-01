@@ -23,7 +23,8 @@ class ApiConstants {
 
   // Operator management (admin only)
   static const String adminOperatorsList = '/operator/admin/operators/';
-  static const String adminOperatorsCreate = '/operator/admin/operators/create/';
+  static const String adminOperatorsCreate =
+      '/operator/admin/operators/create/';
   static String adminOperatorDetail(int id) => '/operator/admin/operators/$id/';
 
   // Statuses
@@ -41,7 +42,8 @@ class ApiConstants {
   // Leads (admin)
   static const String adminLeads = '/operator/admin/leads/';
   static const String adminLeadsAssign = '/operator/admin/leads/assign/';
-  static const String adminLeadsBulkCreate = '/operator/admin/leads/bulk-create/';
+  static const String adminLeadsBulkCreate =
+      '/operator/admin/leads/bulk-create/';
 
   // Operator orders (seller)
   static const String operatorOrderCreate = '/operator/orders/create/';
@@ -51,15 +53,18 @@ class ApiConstants {
   static const String chatRooms = '/chat/rooms/';
   static String chatMessages(int roomId) => '/chat/rooms/$roomId/messages/';
   static const String chatSendMessage = '/chat/messages/';
-  static String chatMarkAsRead(int roomId) => '/chat/rooms/$roomId/mark_as_read/';
+  static String chatMarkAsRead(int roomId) =>
+      '/chat/rooms/$roomId/mark_as_read/';
   static const String chatUnreadTotal = '/chat/rooms/unread_total/';
-  static String chatRecommend(int roomId) => '/operator/chat/rooms/$roomId/recommend/';
+  static String chatRecommend(int roomId) =>
+      '/operator/chat/rooms/$roomId/recommend/';
   static const String shopMedicines = '/shop/medicines/';
 
   // Statistics
   static const String myStatistics = '/operator/my-statistics/';
   static const String adminStatistics = '/operator/admin/statistics/';
-  static const String adminOperatorsRanking = '/operator/admin/operators/ranking/';
+  static const String adminOperatorsRanking =
+      '/operator/admin/operators/ranking/';
   static String adminOperatorStats(int operatorId) =>
       '/operator/admin/operators/$operatorId/stats/';
 
