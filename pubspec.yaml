@@ -21,7 +21,6 @@ dependencies:
   intl: ^0.19.0
   equatable: ^2.0.5
   dartz: ^0.10.1
-  google_fonts: ^8.0.2
   shared_preferences: ^2.5.4
   web_socket_channel: ^3.0.1
   pretty_dio_logger: ^1.4.0
@@ -45,3 +44,17 @@ flutter:
 
   assets:
     - assets/images/
+
+  # Poppins is bundled locally (instead of google_fonts runtime fetching) so
+  # the first paint on web doesn't wait on fonts.gstatic.com and works offline.
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700

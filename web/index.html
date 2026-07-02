@@ -31,8 +31,94 @@
 
   <title>Mehrigiyo CRM</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Branded splash shown while the Flutter engine boots. Removed on the
+       `flutter-first-frame` event below. */
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      background: linear-gradient(160deg, #071510 0%, #0A2319 55%, #0E3D2E 100%);
+      z-index: 9999;
+      transition: opacity 0.35s ease-out;
+    }
+    #splash.done {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #splash .logo {
+      width: 84px;
+      height: 84px;
+      border-radius: 22px;
+      background: rgba(26, 171, 135, 0.12);
+      border: 1px solid rgba(26, 171, 135, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: splash-pulse 2.2s ease-in-out infinite;
+    }
+    #splash .logo svg { width: 44px; height: 44px; }
+    #splash .title {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: #E6F4F0;
+    }
+    #splash .bar {
+      width: 132px;
+      height: 3px;
+      border-radius: 3px;
+      background: rgba(230, 244, 240, 0.14);
+      overflow: hidden;
+    }
+    #splash .bar::after {
+      content: '';
+      display: block;
+      width: 40%;
+      height: 100%;
+      border-radius: 3px;
+      background: #1AAB87;
+      animation: splash-slide 1.1s ease-in-out infinite;
+    }
+    @keyframes splash-pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(26, 171, 135, 0.25); }
+      50% { transform: scale(1.05); box-shadow: 0 0 0 16px rgba(26, 171, 135, 0); }
+    }
+    @keyframes splash-slide {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(330%); }
+    }
+  </style>
 </head>
 <body>
+  <div id="splash">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C7 6 4 9.5 4 14a8 8 0 0 0 16 0c0-4.5-3-8-8-12Z"
+              stroke="#1AAB87" stroke-width="1.6" fill="rgba(26,171,135,0.18)"/>
+        <path d="M12 22V8M12 12l3.5-3M12 15l-3.5-3"
+              stroke="#1AAB87" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="title">Mehrigiyo CRM</div>
+    <div class="bar"></div>
+  </div>
+
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      if (!splash) return;
+      splash.classList.add('done');
+      setTimeout(function () { splash.remove(); }, 400);
+    });
+  </script>
+
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

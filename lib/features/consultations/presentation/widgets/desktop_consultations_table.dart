@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../domain/entities/consultation_entity.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/entrance.dart';
 import 'status_badge.dart';
 
 class DesktopConsultationsTable extends StatelessWidget {
@@ -109,9 +110,7 @@ class _TableHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        border: const Border(
-          bottom: BorderSide(color: AppColors.borderLight),
-        ),
+        border: const Border(bottom: BorderSide(color: AppColors.borderLight)),
       ),
       child: Row(
         children: const [
@@ -189,7 +188,10 @@ class _TableRows extends StatelessWidget {
           );
         }
         final item = items[index];
-        return _TableRow(item: item, onTap: () => onTap(item));
+        return Entrance.staggered(
+          index: index,
+          child: _TableRow(item: item, onTap: () => onTap(item)),
+        );
       },
     );
   }
@@ -203,150 +205,156 @@ class _TableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 50,
-            child: Text(
-              item.id,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.clientName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                _PhoneCopyCell(phone: item.phone),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: Tooltip(
-              message: item.issueDescription,
+    // Whole row is clickable with a soft hover tint — reads like a native
+    // desktop table instead of a hover-dead web list.
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      hoverColor: AppColors.primary.withValues(alpha: 0.04),
+      splashColor: AppColors.primary.withValues(alpha: 0.06),
+      highlightColor: AppColors.primary.withValues(alpha: 0.05),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 50,
               child: Text(
-                item.issueDescription,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                item.id,
                 style: const TextStyle(
+                  fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
-                  height: 1.4,
                   fontSize: 13,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: item.operatorNote != null && item.operatorNote!.isNotEmpty
-                ? Tooltip(
-                    message: item.operatorNote!,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppColors.warning.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        item.operatorNote!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.orange.shade800,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                  )
-                : const Text(
-                    'Izoh yo\'q',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.clientName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
                     ),
                   ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 130,
-            child: StatusBadge(status: item.status),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 100,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  DateFormat('dd.MM.yyyy').format(item.createdAt),
+                  const SizedBox(height: 3),
+                  _PhoneCopyCell(phone: item.phone),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: Tooltip(
+                message: item.issueDescription,
+                child: Text(
+                  item.issueDescription,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  DateFormat('HH:mm').format(item.createdAt),
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: item.operatorNote != null && item.operatorNote!.isNotEmpty
+                  ? Tooltip(
+                      message: item.operatorNote!,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          item.operatorNote!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.orange.shade800,
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    )
+                  : const Text(
+                      'Izoh yo\'q',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(width: 130, child: StatusBadge(status: item.status)),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 100,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DateFormat('dd.MM.yyyy').format(item.createdAt),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('HH:mm').format(item.createdAt),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 120,
+              child: TextButton.icon(
+                icon: const Icon(Icons.remove_red_eye_rounded, size: 16),
+                label: const Text('Batafsil'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.08),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 120,
-            child: TextButton.icon(
-              icon: const Icon(Icons.remove_red_eye_rounded, size: 16),
-              label: const Text('Batafsil'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                onPressed: onTap,
               ),
-              onPressed: onTap,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -385,7 +393,11 @@ class _PhoneCopyCell extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.copy_rounded, size: 12, color: AppColors.textMuted),
+            const Icon(
+              Icons.copy_rounded,
+              size: 12,
+              color: AppColors.textMuted,
+            ),
           ],
         ),
       ),
